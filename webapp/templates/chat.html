@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gil's Arena — Transcript Chat</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #f4a261;
+      --border: #2d323c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .warn { background: #3d2914; border: 1px solid var(--accent); color: #fde8d0; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    textarea {
+      width: 100%;
+      min-height: 5rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      resize: vertical;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 1rem 0; }
+    .row label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    input[type="number"] { width: 4rem; padding: 0.35rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+    button {
+      background: var(--accent);
+      color: #1a1206;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .out { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+    .out h2 { font-size: 0.95rem; margin: 0 0 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .answer { white-space: pre-wrap; }
+    .cite { border-top: 1px solid var(--border); margin-top: 0.75rem; padding-top: 0.75rem; font-size: 0.88rem; }
+    .cite summary { cursor: pointer; color: var(--accent); }
+    .err { color: #f87171; margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gil's Arena transcript chat</h1>
+    <p class="sub">Retrieval is local (FAISS). Optional answers via OpenRouter — citations always shown.</p>
+    {% if not index_ok %}
+    <div class="warn">Index not found. Build with: <code>uv run python scripts/build_transcript_index.py</code></div>
+    {% endif %}
+
+    <label for="q">Your question</label>
+    <textarea id="q" placeholder="What did they say about Team USA?"></textarea>
+
+    <div class="row">
+      <label><input type="checkbox" id="retrievalOnly" /> Retrieval only (no LLM)</label>
+      <label>top_k <input type="number" id="topK" value="5" min="1" max="50" /></label>
+      <button type="button" id="send">Ask</button>
+    </div>
+
+    <div class="out" id="answerBox" hidden>
+      <h2>Answer</h2>
+      <div class="answer" id="answer"></div>
+      <div class="err" id="err"></div>
+    </div>
+
+    <div class="out" id="citeBox" hidden>
+      <h2>Evidence</h2>
+      <div id="citations"></div>
+    </div>
+  </div>
+  <script>
+    const q = document.getElementById("q");
+    const send = document.getElementById("send");
+    const retrievalOnly = document.getElementById("retrievalOnly");
+    const topK = document.getElementById("topK");
+    const answerBox = document.getElementById("answerBox");
+    const answerEl = document.getElementById("answer");
+    const errEl = document.getElementById("err");
+    const citeBox = document.getElementById("citeBox");
+    const citationsEl = document.getElementById("citations");
+
+    send.addEventListener("click", async () => {
+      const message = q.value.trim();
+      if (!message) return;
+      send.disabled = true;
+      errEl.textContent = "";
+      answerBox.hidden = false;
+      citeBox.hidden = false;
+      answerEl.textContent = "…";
+      citationsEl.innerHTML = "";
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            top_k: parseInt(topK.value, 10) || 5,
+            retrieval_only: retrievalOnly.checked,
+            history: [],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          answerEl.textContent = "";
+          errEl.textContent = data.detail || res.statusText;
+          return;
+        }
+        answerEl.textContent = data.answer || "(empty)";
+        if (data.error) errEl.textContent = data.error;
+        (data.citations || []).forEach((c) => {
+          const det = document.createElement("details");
+          det.className = "cite";
+          det.open = true;
+          det.innerHTML =
+            "<summary>" +
+            c.rank + ". " + escapeHtml(c.episode_title) +
+            " · " + escapeHtml(c.source_file) +
+            " · " + escapeHtml(c.start_timestamp) + "–" + escapeHtml(c.end_timestamp) +
+            " · score " + c.score +
+            "</summary>" +
+            "<p>" + escapeHtml(c.chunk_text) + "</p>";
+          citationsEl.appendChild(det);
+        });
+      } catch (e) {
+        answerEl.textContent = "";
+        errEl.textContent = String(e);
+      } finally {
+        send.disabled = false;
+      }
+    });
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+  </script>
+</body>
+</html>

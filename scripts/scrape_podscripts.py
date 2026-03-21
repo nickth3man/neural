@@ -7,6 +7,7 @@ Respects robots.txt, rate limits requests, and stores transcripts as text files.
 
 import argparse
 import html
+import json
 import logging
 import re
 import sys
@@ -20,7 +21,6 @@ from typing import TypedDict
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-
 
 # ============================================================================
 # Type Definitions
@@ -46,6 +46,17 @@ class ScrapeResult(TypedDict):
     failures: list[str]
 
 
+class ManifestEntry(TypedDict):
+    """One row in the optional JSON manifest for a successfully saved episode."""
+
+    title: str
+    url_slug: str
+    date: str
+    description: str
+    transcript_url: str
+    file_path: str
+
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -57,8 +68,11 @@ class ScraperConfig:
 
     base_url: str = "https://podscripts.co"
     podcast_slug: str = "gils-arena"
-    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    rate_limit_seconds: int = 5
+    user_agent: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+    rate_limit_seconds: float = 1.0
     max_retries: int = 3
     request_timeout: int = 30
     robots_timeout: int = 10
@@ -271,7 +285,7 @@ def save_transcript_as_text(
     episode_title: str,
     transcript_lines: list[str],
     output_dir: Path,
-) -> bool:
+) -> Path | None:
     """
     Save episode transcript as plain text matching the existing folder format.
 
@@ -281,7 +295,7 @@ def save_transcript_as_text(
         output_dir: Directory to save the transcript in.
 
     Returns:
-        True if save was successful, False otherwise.
+        Path to the saved file if successful, None otherwise.
     """
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -294,11 +308,19 @@ def save_transcript_as_text(
             f.write("\n".join(lines))
 
         logger.info(f"Saved transcript to {filepath}")
-        return True
+        return filepath
 
     except OSError as e:
         logger.error(f"Failed to save transcript as text: {e}")
-        return False
+        return None
+
+
+def write_episode_manifest(manifest_path: Path, entries: list[ManifestEntry]) -> None:
+    """Write manifest JSON (this run only). Creates parent directories if needed."""
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(entries, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 
 
 def parse_episode_list(html_content: str, page_num: int) -> list[Episode]:
@@ -418,7 +440,7 @@ def scrape_episode(
     episode: Episode,
     session: requests.Session,
     output_dir: Path,
-) -> bool:
+) -> Path | None:
     """
     Scrape a single episode's transcript and store it as a text file.
 
@@ -428,7 +450,7 @@ def scrape_episode(
         output_dir: Directory to save the transcript in.
 
     Returns:
-        True if scraping and saving succeeded, False otherwise.
+        Path to the saved transcript file if successful, None otherwise.
     """
     transcript_url = f"{CONFIG.base_url}/podcasts/{CONFIG.podcast_slug}/{episode['url_slug']}"
 
@@ -436,23 +458,24 @@ def scrape_episode(
 
     response = fetch_with_retry(transcript_url, session)
     if not response:
-        return False
+        return None
 
     transcript_lines = parse_transcript_page(response.text)
 
     if not transcript_lines:
         logger.warning(f"No transcript lines found for episode: {episode['url_slug']}")
         log_failure(transcript_url, "No transcript lines extracted")
-        return False
+        return None
 
-    if save_transcript_as_text(episode["title"], transcript_lines, output_dir):
+    saved_path = save_transcript_as_text(episode["title"], transcript_lines, output_dir)
+    if saved_path is not None:
         logger.info(
             f"Saved {len(transcript_lines)} lines for episode: {episode['title']}"
         )
-        return True
+        return saved_path
 
     log_failure(transcript_url, "Failed to write transcript file")
-    return False
+    return None
 
 
 def run_scraper(
@@ -462,6 +485,8 @@ def run_scraper(
     end_page: int | None = None,
     limit: int | None = None,
     output_dir: Path = CONFIG.default_transcripts_dir,
+    manifest_path: Path | None = None,
+    delay_seconds: float | None = None,
 ) -> ScrapeResult:
     """
     Main scraper orchestrator.
@@ -473,6 +498,8 @@ def run_scraper(
         end_page: Last page number to scrape. Uses config default if None.
         limit: Maximum number of episodes to scrape. No limit if None.
         output_dir: Directory to save transcript files in.
+        manifest_path: If set, write JSON manifest of this run's successes to this path.
+        delay_seconds: Pause between list-page and episode requests; uses config if None.
 
     Returns:
         ScrapeResult dictionary with summary statistics.
@@ -481,6 +508,8 @@ def run_scraper(
         RobotsBlockedError: If scraping is blocked by robots.txt.
     """
     logger.info("Checking robots.txt...")
+
+    pause = CONFIG.rate_limit_seconds if delay_seconds is None else delay_seconds
 
     with requests.Session() as session:
         session.headers.update({"User-Agent": CONFIG.user_agent})
@@ -529,7 +558,7 @@ def run_scraper(
 
             # Rate limit between page fetches
             if page_num < end_page:
-                time.sleep(CONFIG.rate_limit_seconds)
+                time.sleep(pause)
 
         logger.info(f"Found {len(all_episodes)} total episodes")
 
@@ -554,6 +583,8 @@ def run_scraper(
 
         if not episodes_to_scrape:
             logger.info("No new episodes to scrape")
+            if manifest_path is not None:
+                write_episode_manifest(manifest_path, [])
             return ScrapeResult(
                 total_found=len(all_episodes),
                 skipped_existing=skipped_existing,
@@ -568,19 +599,37 @@ def run_scraper(
         success_count = 0
         failure_count = 0
         failure_urls: list[str] = []
+        manifest_entries: list[ManifestEntry] = []
+        output_resolved = output_dir.resolve()
 
         for i, episode in enumerate(
             tqdm(episodes_to_scrape, desc="Scraping transcripts", disable=False)
         ):
-            if scrape_episode(episode, session, output_dir):
+            saved_path = scrape_episode(episode, session, output_dir)
+            if saved_path is not None:
                 success_count += 1
+                if manifest_path is not None:
+                    transcript_url = (
+                        f"{CONFIG.base_url}/podcasts/{CONFIG.podcast_slug}/"
+                        f"{episode['url_slug']}"
+                    )
+                    rel_path = str(saved_path.resolve().relative_to(output_resolved))
+                    entry: ManifestEntry = {
+                        "title": episode["title"],
+                        "url_slug": episode["url_slug"],
+                        "date": episode["date"],
+                        "description": episode["description"],
+                        "transcript_url": transcript_url,
+                        "file_path": rel_path,
+                    }
+                    manifest_entries.append(entry)
             else:
                 failure_count += 1
                 failure_urls.append(episode["url_slug"])
 
             # Rate limit between episode scrapes
             if i < len(episodes_to_scrape) - 1:
-                time.sleep(CONFIG.rate_limit_seconds)
+                time.sleep(pause)
 
         logger.info(
             f"Scraping complete: {success_count} succeeded, {failure_count} failed"
@@ -588,6 +637,9 @@ def run_scraper(
 
         if failure_count > 0:
             logger.warning(f"Failures logged to {CONFIG.failure_log_path}")
+
+        if manifest_path is not None:
+            write_episode_manifest(manifest_path, manifest_entries)
 
         return ScrapeResult(
             total_found=len(all_episodes),
@@ -633,6 +685,13 @@ def main() -> None:
         help="Maximum number of episodes to scrape (no limit by default)",
     )
     parser.add_argument(
+        "--delay",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="Seconds to wait between episode-list pages and between episodes",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=str(CONFIG.default_transcripts_dir),
@@ -642,6 +701,12 @@ def main() -> None:
         "--verbose",
         action="store_true",
         help="Enable verbose debug logging",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=str,
+        default=None,
+        help="Write JSON manifest of successfully scraped episodes (this run only) to PATH",
     )
 
     args = parser.parse_args()
@@ -658,6 +723,8 @@ def main() -> None:
             end_page=args.end_page,
             limit=args.limit,
             output_dir=Path(args.output_dir),
+            manifest_path=Path(args.manifest) if args.manifest else None,
+            delay_seconds=args.delay,
         )
 
         # Print summary

@@ -1,0 +1,27 @@
+[
+  {
+    "query": "What did the show say about Giannis trade rumors?",
+    "expected_episode_substring": "Gils_Arena_Reacts_To_The_WILD_Giannis_Trade_Rumors",
+    "notes": "Use to validate player-trade rumor retrieval."
+  },
+  {
+    "query": "What did they say about Team USA basketball at the Olympics?",
+    "expected_episode_substring": "Gils_Arena_RETURNS_To_Break_Down_Team_USA_Hoops",
+    "notes": "Use to validate Team USA and Olympics retrieval."
+  },
+  {
+    "query": "Find discussion about Bronny James proving he belongs in the NBA.",
+    "expected_episode_substring": "Bronny_James_Has_Finally_PROVEN_He_Belongs_In_The_NBA",
+    "notes": "Use to validate player-development retrieval."
+  },
+  {
+    "query": "What were they saying about the Lakers panic button?",
+    "expected_episode_substring": "The_Los_Angeles_Lakers_NEED_To_Push_The_Panic_Button",
+    "notes": "Use to validate team-state retrieval."
+  },
+  {
+    "query": "Show me a chunk about Kawhi Leonard leaving Team USA.",
+    "expected_episode_substring": "Gils_Arena_Reacts_To_Kawhi_Leonard_Leaving_Team_USA",
+    "notes": "Use to validate event-specific retrieval."
+  }
+]
