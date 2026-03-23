@@ -1,0 +1,38 @@
+minimum_pre_commit_version: "3.7.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: ^gil/
+      - id: trailing-whitespace
+        exclude: ^gil/
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix src scripts tests
+        language: system
+        pass_filenames: false
+        files: ^(src|scripts|tests)/.*\.py$
+
+      - id: ty-check
+        name: ty check
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        files: ^(src|scripts|tests)/.*\.py$
+        stages: [pre-push]
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        files: ^(src|scripts|tests)/.*\.py$
+        stages: [pre-push]
