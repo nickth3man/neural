@@ -22,9 +22,11 @@ if str(_SRC_ROOT) not in sys.path:
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from neural.answer_markup import markdown_to_safe_html, plain_text_to_safe_html
 from neural.chat_prompt import build_rag_messages
 from neural.ingestion_status import summarize_ingestion_status
 from neural.metadata_index import MetadataIndex, RetrievalFilters, load_metadata_index
@@ -88,23 +90,28 @@ async def lifespan(app: FastAPI):
         "chat_requests": 0,
         "stream_requests": 0,
         "last_request_ms": 0.0,
+        "last_chat_ms": 0.0,
+        "last_stream_ms": 0.0,
     }
     yield
 
 
 app = FastAPI(title="Gil Transcript Chatbot", lifespan=lifespan)
 
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
 
 class ChatTurn(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=8000)
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     top_k: int = Field(default=5, ge=1, le=50)
     retrieval_only: bool = False
-    history: list[ChatTurn] = Field(default_factory=list)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=40)
     episode_type: str | None = None
     guest_name: str | None = None
     speaker: str | None = None
@@ -117,6 +124,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+    answer_html: str | None = None
     citations: list[dict[str, Any]]
     generation_skipped: bool
     error: str | None = None
@@ -147,6 +155,13 @@ async def observe_requests(request: Request, call_next):
         request.url.path,
         response.status_code,
         duration_ms,
+        extra={
+            "request_id": request_id,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "duration_ms": round(duration_ms, 3),
+        },
     )
     return response
 
@@ -257,6 +272,17 @@ async def chat_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/api/metrics")
+async def api_metrics(request: Request) -> dict[str, Any]:
+    """Compact JSON metrics for operators (distinct from /health)."""
+    uptime_seconds = round(time.time() - request.app.state.started_at, 3)
+    return {
+        "started_at": request.app.state.started_at,
+        "uptime_seconds": uptime_seconds,
+        "metrics": dict(request.app.state.metrics),
+    }
+
+
 @app.get("/health")
 async def health(request: Request) -> dict[str, Any]:
     uptime_seconds = round(time.time() - request.app.state.started_at, 3)
@@ -297,47 +323,60 @@ async def ingestion_status(request: Request) -> dict[str, Any]:
 @app.post("/api/chat", response_model=ChatResponse)
 async def api_chat(request: Request, body: ChatRequest) -> ChatResponse:
     request.app.state.metrics["chat_requests"] += 1
-    results, citations = _retrieve_for_chat(request, body)
-
-    if body.retrieval_only:
-        return ChatResponse(
-            answer=_retrieval_only_text(citations),
-            citations=citations,
-            generation_skipped=True,
-            error=None,
-        )
-
-    api_key = _openrouter_api_key()
-    if api_key is None:
-        return ChatResponse(
-            answer=MISSING_OPENROUTER_KEY_ANSWER,
-            citations=citations,
-            generation_skipped=True,
-            error=MISSING_OPENROUTER_KEY_ERROR,
-        )
-
-    messages = _rag_messages(body, results)
-
+    t0 = time.perf_counter()
     try:
-        answer = complete_chat(
-            messages,
-            api_key=api_key,
-            model=os.environ.get("OPENROUTER_MODEL"),
-        )
-    except OpenRouterError as exc:
+        results, citations = _retrieve_for_chat(request, body)
+
+        if body.retrieval_only:
+            answer = _retrieval_only_text(citations)
+            return ChatResponse(
+                answer=answer,
+                answer_html=plain_text_to_safe_html(answer) or None,
+                citations=citations,
+                generation_skipped=True,
+                error=None,
+            )
+
+        api_key = _openrouter_api_key()
+        if api_key is None:
+            return ChatResponse(
+                answer=MISSING_OPENROUTER_KEY_ANSWER,
+                answer_html=plain_text_to_safe_html(MISSING_OPENROUTER_KEY_ANSWER) or None,
+                citations=citations,
+                generation_skipped=True,
+                error=MISSING_OPENROUTER_KEY_ERROR,
+            )
+
+        messages = _rag_messages(body, results)
+
+        try:
+            answer = complete_chat(
+                messages,
+                api_key=api_key,
+                model=os.environ.get("OPENROUTER_MODEL"),
+            )
+        except OpenRouterError as exc:
+            return ChatResponse(
+                answer="",
+                answer_html=None,
+                citations=citations,
+                generation_skipped=False,
+                error=str(exc),
+            )
+
+        html = markdown_to_safe_html(answer) or None
         return ChatResponse(
-            answer="",
+            answer=answer,
+            answer_html=html,
             citations=citations,
             generation_skipped=False,
-            error=str(exc),
+            error=None,
         )
-
-    return ChatResponse(
-        answer=answer,
-        citations=citations,
-        generation_skipped=False,
-        error=None,
-    )
+    finally:
+        request.app.state.metrics["last_chat_ms"] = round(
+            (time.perf_counter() - t0) * 1000,
+            3,
+        )
 
 
 @app.post("/api/chat/stream")
@@ -346,46 +385,75 @@ async def api_chat_stream(request: Request, body: ChatRequest) -> StreamingRespo
     results, citations = _retrieve_for_chat(request, body)
 
     def event_stream():
-        yield _sse_event("citations", {"citations": citations})
-        if body.retrieval_only:
-            answer = _retrieval_only_text(citations)
-            yield _sse_event("answer", {"delta": answer})
-            yield _sse_event("done", {"answer": answer, "generation_skipped": True})
-            return
+        t0 = time.perf_counter()
+        try:
+            yield _sse_event("citations", {"citations": citations})
+            if body.retrieval_only:
+                answer = _retrieval_only_text(citations)
+                yield _sse_event("answer", {"delta": answer})
+                yield _sse_event(
+                    "done",
+                    {
+                        "answer": answer,
+                        "generation_skipped": True,
+                        "answer_html": plain_text_to_safe_html(answer) or None,
+                    },
+                )
+                return
 
-        api_key = _openrouter_api_key()
-        if api_key is None:
-            yield _sse_event("answer", {"delta": MISSING_OPENROUTER_KEY_ANSWER})
+            api_key = _openrouter_api_key()
+            if api_key is None:
+                yield _sse_event("answer", {"delta": MISSING_OPENROUTER_KEY_ANSWER})
+                yield _sse_event(
+                    "done",
+                    {
+                        "answer": MISSING_OPENROUTER_KEY_ANSWER,
+                        "generation_skipped": True,
+                        "error": MISSING_OPENROUTER_KEY_ERROR,
+                        "answer_html": plain_text_to_safe_html(MISSING_OPENROUTER_KEY_ANSWER)
+                        or None,
+                    },
+                )
+                return
+
+            messages = _rag_messages(body, results)
+            answer_parts: list[str] = []
+            try:
+                for chunk in stream_chat(
+                    messages,
+                    api_key=api_key,
+                    model=os.environ.get("OPENROUTER_MODEL"),
+                ):
+                    answer_parts.append(chunk)
+                    yield _sse_event("answer", {"delta": chunk})
+            except OpenRouterError as exc:
+                partial = "".join(answer_parts)
+                yield _sse_event("error", {"message": str(exc)})
+                yield _sse_event(
+                    "done",
+                    {
+                        "answer": partial,
+                        "generation_skipped": False,
+                        "error": str(exc),
+                        "answer_html": markdown_to_safe_html(partial) if partial else None,
+                    },
+                )
+                return
+
+            answer = "".join(answer_parts)
             yield _sse_event(
                 "done",
                 {
-                    "answer": MISSING_OPENROUTER_KEY_ANSWER,
-                    "generation_skipped": True,
-                    "error": MISSING_OPENROUTER_KEY_ERROR,
+                    "answer": answer,
+                    "generation_skipped": False,
+                    "answer_html": markdown_to_safe_html(answer) or None,
                 },
             )
-            return
-
-        messages = _rag_messages(body, results)
-        answer_parts: list[str] = []
-        try:
-            for chunk in stream_chat(
-                messages,
-                api_key=api_key,
-                model=os.environ.get("OPENROUTER_MODEL"),
-            ):
-                answer_parts.append(chunk)
-                yield _sse_event("answer", {"delta": chunk})
-        except OpenRouterError as exc:
-            yield _sse_event("error", {"message": str(exc)})
-            yield _sse_event(
-                "done",
-                {"answer": "".join(answer_parts), "generation_skipped": False, "error": str(exc)},
+        finally:
+            request.app.state.metrics["last_stream_ms"] = round(
+                (time.perf_counter() - t0) * 1000,
+                3,
             )
-            return
-
-        answer = "".join(answer_parts)
-        yield _sse_event("done", {"answer": answer, "generation_skipped": False})
 
     return StreamingResponse(
         event_stream(),

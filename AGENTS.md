@@ -38,6 +38,16 @@ uv run pytest tests/ --lf              # Run only last failed tests
 uv run uvicorn --app-dir src webapp.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+### Chat UI (TypeScript)
+
+The browser client is authored in TypeScript and compiled to static JavaScript.
+
+```bash
+cd src/webapp/frontend && npm install && npm run build
+```
+
+This emits [`src/webapp/static/chat.js`](src/webapp/static/chat.js). Commit the compiled file so the app runs without Node; rebuild after editing [`chat.ts`](src/webapp/frontend/chat.ts).
+
 ### Pre-commit Hooks
 
 Hooks run automatically on commit (ruff check, ty check, pytest). Install with:

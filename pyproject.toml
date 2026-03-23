@@ -8,6 +8,8 @@ dependencies = [
     "faiss-cpu>=1.13.2",
     "fastapi>=0.115.0",
     "jinja2>=3.1.0",
+    "markdown>=3.10.2",
+    "nh3>=0.3.3",
     "numpy>=2.4.3",
     "python-dotenv>=1.0.0",
     "requests",
@@ -51,6 +53,8 @@ python-version = "3.12"
 
 [tool.ty.analysis]
 allowed-unresolved-imports = [
+    "markdown.*",
+    "nh3.*",
     "faiss.*",
     "sentence_transformers.*",
     "bs4.*",
@@ -78,4 +82,8 @@ python_version = "3.12"
 # Satisfy editors running mypy without types-* installed for these libs.
 [[tool.mypy.overrides]]
 module = ["requests", "requests.*", "urllib3", "urllib3.*", "tqdm", "tqdm.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["markdown", "markdown.*", "nh3", "nh3.*"]
 ignore_missing_imports = true
