@@ -12,6 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from neural.metadata_index import RetrievalFilters, load_metadata_index
+from neural.reranking import RerankerConfig
 from neural.retrieval import retrieve_from_disk
 
 
@@ -39,16 +41,58 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override the embedding model recorded in config.json",
     )
+    parser.add_argument(
+        "--metadata-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional metadata directory containing enriched_chunks.json and document_metadata.json"
+        ),
+    )
+    parser.add_argument("--episode-type", type=str, default=None, help="Filter by episode type")
+    parser.add_argument("--guest", type=str, default=None, help="Filter by guest name")
+    parser.add_argument("--speaker", type=str, default=None, help="Filter by detected speaker")
+    parser.add_argument("--team", type=str, default=None, help="Filter by mentioned team")
+    parser.add_argument("--topic", type=str, default=None, help="Filter by episode or chunk topic")
+    parser.add_argument("--source-file", type=str, default=None, help="Filter by source filename")
+    parser.add_argument("--rerank", action="store_true", help="Apply cross-encoder reranking")
+    parser.add_argument(
+        "--reranker-model",
+        type=str,
+        default=RerankerConfig().model_name,
+        help="Cross-encoder model for reranking",
+    )
+    parser.add_argument(
+        "--rerank-top-n",
+        type=int,
+        default=RerankerConfig().top_n,
+        help="Number of retrieved candidates to rerank",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    metadata_index = load_metadata_index(args.metadata_dir) if args.metadata_dir else None
+    filters = RetrievalFilters(
+        episode_type=args.episode_type,
+        guest_name=args.guest,
+        speaker=args.speaker,
+        team=args.team,
+        topic=args.topic,
+        source_file=args.source_file,
+    )
+    reranker = None
+    if args.rerank:
+        reranker = RerankerConfig(model_name=args.reranker_model, top_n=args.rerank_top_n)
     results = retrieve_from_disk(
         args.query,
         args.index_dir,
         top_k=args.top_k,
         model_override=args.model,
+        metadata_index=metadata_index,
+        filters=filters,
+        reranker=reranker,
     )
 
     if not results:
@@ -63,6 +107,14 @@ def main() -> None:
         )
         print(f"   file={chunk.source_file}")
         print(f"   text={chunk.chunk_text}")
+        if metadata_index is not None:
+            metadata = metadata_index.metadata_for_result(result)
+            if metadata is not None:
+                print(
+                    f"   metadata=episode_type:{metadata.episode_type or '-'} "
+                    f"speaker:{metadata.speaker or '-'} "
+                    f"teams:{', '.join(metadata.mentioned_teams) or '-'}"
+                )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neural Stack - Current vs Proposed Architecture</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    h1 {
+      color: #2d3748;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #718096;
+      margin-bottom: 30px;
+    }
+    .diagram-container {
+      display: flex;
+      justify-content: space-around;
+      gap: 40px;
+      margin-top: 30px;
+    }
+    .column {
+      flex: 1;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .column-header {
+      font-size: 1.3em;
+      font-weight: bold;
+      text-align: center;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .current { background: #e2e8f0; color: #4a5568; }
+    .proposed { background: #c6f6d5; color: #276749; }
+    
+    svg {
+      width: 100%;
+      height: auto;
+    }
+    
+    /* Node styles */
+    .node-rect {
+      rx: 8;
+      ry: 8;
+    }
+    .start-end {
+      fill: #48bb78;
+    }
+    .process {
+      fill: #4299e1;
+    }
+    .process-alt {
+      fill: #667eea;
+    }
+    .decision {
+      fill: #f59e0b;
+    }
+    .data {
+      fill: #9f7aea;
+    }
+    .new-feature {
+      fill: #ed8936;
+      stroke: #dd6b20;
+      stroke-width: 2;
+      stroke-dasharray: 5,5;
+    }
+    .text {
+      fill: white;
+      font-size: 12px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .text-dark {
+      fill: #2d3748;
+      font-size: 11px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .arrow {
+      fill: none;
+      stroke: #718096;
+      stroke-width: 2;
+      marker-end: url(#arrowhead);
+    }
+    .arrow-new {
+      fill: none;
+      stroke: #ed8936;
+      stroke-width: 2;
+      stroke-dasharray: 4,4;
+      marker-end: url(#arrowhead-new);
+    }
+    .label {
+      fill: #4a5568;
+      font-size: 10px;
+      text-anchor: middle;
+    }
+    .legend {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f7fafc;
+      border-radius: 8px;
+      font-size: 0.9em;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .legend-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏀 Neural Transcript Stack Architecture</h1>
+  <p class="subtitle">Current Implementation vs Proposed Enhancements</p>
+  
+  <div class="diagram-container">
+    <!-- CURRENT ARCHITECTURE -->
+    <div class="column">
+      <div class="column-header current">📍 Current Architecture</div>
+      
+      <svg viewBox="0 0 350 650" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#718096" />
+          </marker>
+        </defs>
+        
+        <!-- Input -->
+        <rect x="100" y="20" width="150" height="40" class="node-rect start-end" />
+        <text x="175" y="40" class="text">User Query</text>
+        
+        <!-- Arrow -->
+        <path d="M175 60 L175 90" class="arrow" />
+        
+        <!-- Embed -->
+        <rect x="75" y="90" width="200" height="50" class="node-rect process" />
+        <text x="175" y="115" class="text">Sentence-Transformers</text>
+        <text x="175" y="130" class="text" style="font-size:10px">all-MiniLM-L6-v2</text>
+        
+        <!-- Arrow -->
+        <path d="M175 140 L175 170" class="arrow" />
+        
+        <!-- FAISS -->
+        <rect x="85" y="170" width="180" height="50" class="node-rect data" />
+        <text x="175" y="195" class="text">FAISS IndexFlatIP</text>
+        <text x="175" y="210" class="text" style="font-size:10px">Top-k Exact Search</text>
+        
+        <!-- Arrow -->
+        <path d="M175 220 L175 250" class="arrow" />
+        
+        <!-- Results -->
+        <rect x="75" y="250" width="200" height="50" class="node-rect process-alt" />
+        <text x="175" y="275" class="text">Raw Results (Top-5)</text>
+        <!-- Arrow -->
+        <path d="M175 300 L175 330" class="arrow" />
+        
+        <!-- Decision -->
+        <polygon points="175,330 235,360 175,390 115,360" class="decision" />
+        <text x="175" y="358" class="text-dark">Retrieval</text>
+        <text x="175" y="370" class="text-dark">Only?</text>
+        
+        <!-- Yes branch -->
+        <path d="M115 360 L60 360 L60 440" class="arrow" />
+        <text x="90" y="355" class="label">Yes</text>
+        
+        <rect x="10" y="440" width="100" height="40" class="node-rect process" />
+        <text x="60" y="460" class="text" style="font-size:11px">Show Citations</text>
+        
+        <!-- No branch -->
+        <path d="M235 360 L290 360 L290 400" class="arrow" />
+        <text x="265" y="355" class="label">No</text>
+        
+        <rect x="240" y="400" width="100" height="40" class="node-rect process" />
+        <text x="290" y="420" class="text" style="font-size:11px">OpenRouter</text>
+        <!-- Arrow -->
+        <path d="M290 440 L290 460 L175 460 L175 500" class="arrow" />
+        
+        <!-- Merge -->
+        <rect x="100" y="500" width="150" height="50" class="node-rect process-alt" />
+        <text x="175" y="525" class="text">Answer + Citations</text>
+        
+        <!-- Arrow -->
+        <path d="M175 550 L175 580" class="arrow" />
+        
+        <!-- Output -->
+        <rect x="100" y="580" width="150" height="40" class="node-rect start-end" />
+        <text x="175" y="600" class="text">Web UI Response</text>
+      </svg>
+      
+      <div class="legend">
+        <strong>Key Characteristics:</strong>
+        <ul style="margin:10px 0; padding-left:20px;">
+          <li>Single bi-encoder embedding model</li>
+          <li>Exact FAISS search (no approximation)</li>
+          <li>No reranking of results</li>
+          <li>Full index rebuild required</li>
+          <li>Manual evaluation only</li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- PROPOSED ARCHITECTURE -->
+    <div class="column">
+      <div class="column-header proposed">🚀 Proposed Architecture</div>
+      
+      <svg viewBox="0 0 400 750" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#718096" />
+          </marker>
+          <marker id="arrowhead-new" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#ed8936" />
+          </marker>
+        </defs>
+        
+        <!-- Evaluation Layer (NEW) -->
+        <rect x="20" y="10" width="140" height="35" class="node-rect new-feature" />
+        <text x="90" y="32" class="text-dark">📊 Eval Harness</text>
+        <!-- Input -->
+        <rect x="125" y="70" width="150" height="40" class="node-rect start-end" />
+        <text x="200" y="90" class="text">User Query</text>
+        
+        <!-- Arrow -->
+        <path d="M200 110 L200 140" class="arrow" />
+        
+        <!-- Embed -->
+        <rect x="100" y="140" width="200" height="50" class="node-rect process" />
+        <text x="200" y="165" class="text">Sentence-Transformers</text>
+        <text x="200" y="180" class="text" style="font-size:10px">all-MiniLM-L6-v2</text>
+        
+        <!-- Arrow -->
+        <path d="M200 190 L200 220" class="arrow" />
+        
+        <!-- FAISS -->
+        <rect x="110" y="220" width="180" height="50" class="node-rect data" />
+        <text x="200" y="245" class="text">FAISS IndexFlatIP</text>
+        <text x="200" y="260" class="text" style="font-size:10px">Top-20 Candidate Search</text>
+        
+        <!-- Arrow -->
+        <path d="M200 270 L200 300" class="arrow" />
+        
+        <!-- NEW: Reranker -->
+        <rect x="100" y="300" width

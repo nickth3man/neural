@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Sequence
+from functools import lru_cache
 
 import numpy as np
 
 DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
+@lru_cache(maxsize=4)
 def load_embedding_model(model_name: str = DEFAULT_EMBEDDING_MODEL):
     """Load a sentence-transformers model lazily."""
     try:
-        from sentence_transformers import SentenceTransformer
+        module = importlib.import_module("sentence_transformers")
     except ImportError as exc:
         msg = (
             "sentence-transformers is required for embedding support. "
@@ -20,6 +23,7 @@ def load_embedding_model(model_name: str = DEFAULT_EMBEDDING_MODEL):
         )
         raise RuntimeError(msg) from exc
 
+    SentenceTransformer = getattr(module, "SentenceTransformer")
     return SentenceTransformer(model_name)
 
 

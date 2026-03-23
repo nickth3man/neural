@@ -8,6 +8,13 @@ from typing import Any
 
 from neural.chunking import TranscriptChunk
 from neural.embeddings import encode_texts
+from neural.metadata_index import (
+    MetadataIndex,
+    RetrievalFilters,
+    filter_search_results,
+    metadata_to_citation,
+)
+from neural.reranking import RerankerConfig, rerank_results
 from neural.vector_index import SearchResult, build_search_results, load_index_bundle, search_index
 
 
@@ -32,6 +39,9 @@ def retrieve(
     *,
     top_k: int = 5,
     model_override: str | None = None,
+    metadata_index: MetadataIndex | None = None,
+    filters: RetrievalFilters | None = None,
+    reranker: RerankerConfig | None = None,
 ) -> list[SearchResult]:
     """
     Embed ``query``, search the bundle index, and return ranked ``SearchResult`` rows.
@@ -44,8 +54,23 @@ def retrieve(
 
     model_name = model_override or bundle.config["model_name"]
     query_embedding = encode_texts([query], model_name=model_name)
-    scores, indices = search_index(bundle.index, query_embedding, top_k)
-    return build_search_results(scores, indices, bundle.chunks)
+    candidate_count = top_k
+    if reranker is not None:
+        candidate_count = max(candidate_count, reranker.top_n)
+    if filters is not None and filters.active() and metadata_index is not None:
+        candidate_count = max(candidate_count, top_k * 10)
+
+    scores, indices = search_index(bundle.index, query_embedding, candidate_count)
+    results = build_search_results(scores, indices, bundle.chunks)
+    if filters is not None and metadata_index is not None:
+        results = filter_search_results(results, metadata_index, filters)
+    if reranker is not None:
+        results = rerank_results(query, results, reranker)
+
+    ranked: list[SearchResult] = []
+    for rank, result in enumerate(results[:top_k], start=1):
+        ranked.append(SearchResult(rank=rank, score=result.score, chunk=result.chunk))
+    return ranked
 
 
 def retrieve_from_disk(
@@ -54,16 +79,30 @@ def retrieve_from_disk(
     *,
     top_k: int = 5,
     model_override: str | None = None,
+    metadata_index: MetadataIndex | None = None,
+    filters: RetrievalFilters | None = None,
+    reranker: RerankerConfig | None = None,
 ) -> list[SearchResult]:
     """Load bundle from disk and retrieve in one call (CLI convenience)."""
     bundle = load_retrieval_bundle(index_dir)
-    return retrieve(bundle, query, top_k=top_k, model_override=model_override)
+    return retrieve(
+        bundle,
+        query,
+        top_k=top_k,
+        model_override=model_override,
+        metadata_index=metadata_index,
+        filters=filters,
+        reranker=reranker,
+    )
 
 
-def search_result_to_citation(result: SearchResult) -> dict[str, str | int | float]:
+def search_result_to_citation(
+    result: SearchResult,
+    metadata_index: MetadataIndex | None = None,
+) -> dict[str, object]:
     """JSON-serializable citation dict for APIs and UI."""
     chunk = result.chunk
-    return {
+    citation: dict[str, object] = {
         "rank": result.rank,
         "score": round(float(result.score), 6),
         "episode_title": chunk.episode_title,
@@ -72,8 +111,17 @@ def search_result_to_citation(result: SearchResult) -> dict[str, str | int | flo
         "end_timestamp": chunk.end_timestamp,
         "chunk_text": chunk.chunk_text,
     }
+    metadata = (
+        metadata_to_citation(metadata_index.metadata_for_result(result)) if metadata_index else None
+    )
+    if metadata is not None:
+        citation["metadata"] = metadata
+    return citation
 
 
-def citations_from_results(results: list[SearchResult]) -> list[dict[str, str | int | float]]:
+def citations_from_results(
+    results: list[SearchResult],
+    metadata_index: MetadataIndex | None = None,
+) -> list[dict[str, object]]:
     """Map a result list to citation dicts."""
-    return [search_result_to_citation(r) for r in results]
+    return [search_result_to_citation(r, metadata_index) for r in results]

@@ -75,6 +75,25 @@ def test_root_ok(chat_client: TestClient) -> None:
     assert "Gil" in r.text
 
 
+def test_health_endpoint(chat_client: TestClient) -> None:
+    r = chat_client.get("/health")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["index_loaded"] is True
+
+
+def test_ready_endpoint_requires_index(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    empty = tmp_path / "no_index_here"
+    empty.mkdir()
+    monkeypatch.setenv("GIL_INDEX_DIR", str(empty))
+    import webapp.main as wm
+
+    importlib.reload(wm)
+    with TestClient(wm.app) as client:
+        r = client.get("/ready")
+    assert r.status_code == 503
+
+
 def test_api_chat_retrieval_only(chat_client: TestClient) -> None:
     r = chat_client.post(
         "/api/chat",
@@ -118,3 +137,32 @@ def test_api_chat_index_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     with TestClient(wm.app) as client:
         r = client.post("/api/chat", json={"message": "x", "top_k": 1, "retrieval_only": True})
     assert r.status_code == 503
+
+
+def test_api_chat_stream_retrieval_only(chat_client: TestClient) -> None:
+    with chat_client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "anything", "top_k": 1, "retrieval_only": True},
+    ) as response:
+        text = "".join(response.iter_text())
+    assert response.status_code == 200
+    assert "event: citations" in text
+    assert "event: done" in text
+
+
+def test_api_chat_stream_generation(
+    chat_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        "webapp.main.stream_chat", lambda messages, api_key, model=None: iter(["Hello", " world"])
+    )
+    with chat_client.stream(
+        "POST",
+        "/api/chat/stream",
+        json={"message": "anything", "top_k": 1, "retrieval_only": False},
+    ) as response:
+        text = "".join(response.iter_text())
+    assert response.status_code == 200
+    assert "Hello" in text

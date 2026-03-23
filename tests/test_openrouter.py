@@ -6,7 +6,7 @@ import json
 from unittest.mock import patch
 
 import pytest
-from neural.openrouter import OpenRouterError, complete_chat
+from neural.openrouter import OpenRouterError, complete_chat, stream_chat
 
 
 class _FakeResponse:
@@ -22,6 +22,9 @@ class _FakeResponse:
     def __exit__(self, *args: object) -> bool:
         return False
 
+    def __iter__(self):
+        return iter(self._body.splitlines(keepends=True))
+
 
 def test_complete_chat_success() -> None:
     payload = {"choices": [{"message": {"content": "  Hello world  "}}]}
@@ -36,9 +39,10 @@ def test_complete_chat_success() -> None:
 def test_complete_chat_http_error() -> None:
     import io
     import urllib.error
+    from email.message import Message
 
     fp = io.BytesIO(b'{"error":"bad"}')
-    err = urllib.error.HTTPError("https://openrouter.ai", 401, "Unauthorized", {}, fp)
+    err = urllib.error.HTTPError("https://openrouter.ai", 401, "Unauthorized", Message(), fp)
 
     with patch("neural.openrouter.urllib.request.urlopen", side_effect=err):
         with pytest.raises(OpenRouterError, match="OpenRouter HTTP 401"):
@@ -55,3 +59,14 @@ def test_complete_chat_bad_shape() -> None:
 def test_complete_chat_empty_key() -> None:
     with pytest.raises(OpenRouterError, match="empty"):
         complete_chat([], api_key="   ")
+
+
+def test_stream_chat_yields_content_chunks() -> None:
+    body = (
+        b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+        b'data: {"choices":[{"delta":{"content":" world"}}]}\n\n'
+        b"data: [DONE]\n\n"
+    )
+    with patch("neural.openrouter.urllib.request.urlopen", return_value=_FakeResponse(body)):
+        chunks = list(stream_chat([{"role": "user", "content": "hi"}], api_key="sk-test"))
+    assert chunks == ["Hello", " world"]

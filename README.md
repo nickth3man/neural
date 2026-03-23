@@ -78,6 +78,26 @@ Useful flags:
 ```bash
 uv run python scripts/query_transcripts.py "Team USA basketball" --top-k 3
 uv run python scripts/query_transcripts.py "Bronny James" --index-dir data/transcript_index
+uv run python scripts/query_transcripts.py "Lakers chemistry" --metadata-dir data/metadata --team Lakers
+uv run python scripts/query_transcripts.py "Dwight Howard" --metadata-dir data/metadata --guest "Dwight Howard" --rerank
+```
+
+### Evaluate Retrieval
+
+Run the tracked seed queries and compute hit rate and MRR:
+
+```bash
+uv run python scripts/evaluate_retrieval.py
+uv run python scripts/evaluate_retrieval.py --metadata-dir data/metadata --rerank --json
+```
+
+### Ingestion Status Report
+
+Summarize transcript, index, metadata, and scrape-failure state:
+
+```bash
+uv run python scripts/report_ingestion_status.py
+uv run python scripts/report_ingestion_status.py --json
 ```
 
 ### Chat Web App (citation-first RAG)
@@ -94,6 +114,8 @@ uv run uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8000
 You can instead `export` the same variables listed in [`.env.example`](.env.example); see that file for `OPENROUTER_*` and `GIL_INDEX_DIR`.
 
 Open `http://127.0.0.1:8000`. Toggle **Retrieval only** to skip the LLM. See [ADR 002](docs/adr/002-citation-first-web-chatbot.md) and [Phase Two Roadmap](docs/phase-two-roadmap.md).
+
+The web UI also supports optional metadata-aware filters, cross-encoder reranking, streaming responses, `/health`, `/ready`, and `/api/ingestion/status`.
 
 ### Manifest (this run only)
 

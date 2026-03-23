@@ -6,6 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from typing import Any
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -47,7 +48,9 @@ def complete_chat(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": os.environ.get("OPENROUTER_HTTP_REFERER", "https://github.com/local/neural"),
+            "HTTP-Referer": os.environ.get(
+                "OPENROUTER_HTTP_REFERER", "https://github.com/local/neural"
+            ),
             "X-Title": os.environ.get("OPENROUTER_APP_TITLE", "Gil Transcript Chatbot"),
         },
     )
@@ -81,3 +84,70 @@ def complete_chat(
         raise OpenRouterError(msg)
 
     return content.strip()
+
+
+def stream_chat(
+    messages: list[dict[str, str]],
+    *,
+    api_key: str,
+    model: str | None = None,
+    timeout_seconds: float = 90.0,
+    temperature: float = 0.3,
+) -> Iterator[str]:
+    if not api_key.strip():
+        msg = "OpenRouter API key is empty"
+        raise OpenRouterError(msg)
+
+    resolved_model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
+    payload: dict[str, Any] = {
+        "model": resolved_model,
+        "messages": messages,
+        "temperature": temperature,
+        "stream": True,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        OPENROUTER_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": os.environ.get(
+                "OPENROUTER_HTTP_REFERER", "https://github.com/local/neural"
+            ),
+            "X-Title": os.environ.get("OPENROUTER_APP_TITLE", "Gil Transcript Chatbot"),
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line or not line.startswith("data: "):
+                    continue
+                payload_line = line[6:]
+                if payload_line == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload_line)
+                except json.JSONDecodeError:
+                    continue
+                try:
+                    choice = data["choices"][0]
+                except (KeyError, IndexError, TypeError) as exc:
+                    msg = f"Unexpected OpenRouter stream shape: {payload_line[:300]}"
+                    raise OpenRouterError(msg) from exc
+                delta = choice.get("delta")
+                if not isinstance(delta, dict):
+                    continue
+                content = delta.get("content")
+                if isinstance(content, str) and content:
+                    yield content
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        msg = f"OpenRouter HTTP {exc.code}: {detail[:500]}"
+        raise OpenRouterError(msg) from exc
+    except urllib.error.URLError as exc:
+        msg = f"OpenRouter request failed: {exc}"
+        raise OpenRouterError(msg) from exc
