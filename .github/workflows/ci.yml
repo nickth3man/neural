@@ -23,8 +23,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      - name: Ruff
+      - name: Ruff check
         run: uv run ruff check src scripts tests
+
+      - name: Ruff format
+        run: uv run ruff format --check src scripts tests
 
       - name: ty
         run: uv run ty check

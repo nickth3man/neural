@@ -38,12 +38,32 @@ pythonpath = ["src", ".", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
 
 [tool.ty.src]
 include = ["src", "scripts"]
+exclude = ["gil/transcripts/**", "data/**", "tests/**"]
 
 [tool.ty.environment]
 python = ".venv"
+python-version = "3.12"
+
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+    "faiss.*",
+    "sentence_transformers.*",
+    "bs4.*",
+    "beautifulsoup4.*",
+    "fastapi.*",
+    "jinja2.*",
+    "uvicorn.*",
+    "tqdm.*",
+    "requests.*",
+    "urllib3.*",
+]
+
+[tool.ty.terminal]
+output-format = "concise"
 
 [tool.pyright]
 include = ["src", "scripts", "tests"]

@@ -113,7 +113,7 @@ uv run uvicorn --app-dir src webapp.main:app --reload --host 127.0.0.1 --port 80
 
 You can instead `export` the same variables listed in [`.env.example`](.env.example); see that file for `OPENROUTER_*` and `GIL_INDEX_DIR`.
 
-Open `http://127.0.0.1:8000`. Toggle **Retrieval only** to skip the LLM. See [ADR 002](docs/adr/002-citation-first-web-chatbot.md) and [Phase Two Roadmap](docs/phase-two-roadmap.md).
+Open `http://127.0.0.1:8000`. Toggle **Retrieval only** to skip the LLM.
 
 The web UI also supports optional metadata-aware filters, cross-encoder reranking, streaming responses, `/health`, `/ready`, and `/api/ingestion/status`.
 
@@ -137,13 +137,8 @@ If there are no episodes to scrape or none succeed, the file is still written as
   - `chunks.json`
   - `config.json`
 
-## Retrieval Docs
+## Evaluation Seeds
 
-- Strategic blueprint: `docs/gil-transcript-blueprint.md`
-- Technical spec: `docs/gil-transcript-tech-spec.md`
-- ADR: `docs/adr/001-retrieval-first.md`
-- Evaluation plan: `docs/gil-transcript-evaluation.md`
-- Phase-two roadmap: `docs/phase-two-roadmap.md`
 - Evaluation seed queries: `evals/gil_queries.json`
 
 ## Etiquette
@@ -153,7 +148,7 @@ The script checks `robots.txt`, waits between list-page and episode requests (de
 ## Contributing
 
 ```bash
-uv run ruff check src scripts tests webapp
+uv run ruff check src scripts tests
 uv run ty check
 uv run pytest
 ```
