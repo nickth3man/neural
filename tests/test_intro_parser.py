@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from neural.corpus import TranscriptDocument, TranscriptLine, load_transcript
 from neural.intro_parser import (
     _build_episode_roster,
@@ -57,7 +58,8 @@ def sample_intro_transcript() -> TranscriptDocument:
             ),
             (
                 100,
-                "And on this side of the couch, representing Tough Crowd, we got Mr. B, Brandon Jennings.",
+                "And on this side of the couch, representing Tough Crowd, "
+                "we got Mr. B, Brandon Jennings.",
             ),
             (110, "We got a special guest making his first appearance in the arena. Famous Los."),
             (120, "Welcome to Guild Arena presented by Underdog Woo Woo."),

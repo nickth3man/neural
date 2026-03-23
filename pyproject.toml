@@ -30,18 +30,18 @@ default-groups = ["dev"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["neural", "scripts", "tests", "webapp"]
+src = ["src", "scripts", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "scripts"]
+pythonpath = ["src", ".", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
 
 [tool.ty.src]
-include = ["neural", "scripts", "webapp"]
+include = ["src", "scripts"]
 exclude = ["gil/transcripts/**", "data/**", "tests/**"]
 
 [tool.ty.environment]
@@ -64,6 +64,12 @@ allowed-unresolved-imports = [
 
 [tool.ty.terminal]
 output-format = "concise"
+
+[tool.pyright]
+include = ["src", "scripts", "tests"]
+extraPaths = ["src", "scripts"]
+venvPath = "."
+venv = ".venv"
 
 [tool.mypy]
 python_version = "3.12"

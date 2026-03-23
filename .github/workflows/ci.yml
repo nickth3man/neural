@@ -24,10 +24,10 @@ jobs:
         run: uv sync --all-groups
 
       - name: Ruff check
-        run: uv run ruff check neural scripts tests webapp
+        run: uv run ruff check src scripts tests
 
       - name: Ruff format
-        run: uv run ruff format --check neural scripts tests webapp
+        run: uv run ruff format --check src scripts tests
 
       - name: ty
         run: uv run ty check

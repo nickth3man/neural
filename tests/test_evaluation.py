@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from neural.chunking import ChunkingConfig, TranscriptChunk
 from neural.evaluation import EvalCase, evaluate_retrieval, load_eval_cases
 from neural.metadata_index import load_metadata_index

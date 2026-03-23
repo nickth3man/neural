@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
 from neural.chunking import ChunkingConfig, TranscriptChunk
 from neural.vector_index import build_faiss_index, save_index_artifacts
 

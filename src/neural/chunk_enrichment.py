@@ -46,7 +46,8 @@ CRITICAL RULES:
 Controlled vocabularies:
 - conversation_type: debate, analysis, reaction, banter, interview, news_roundup, promotion
 - claim_type: fact, opinion, prediction, rumor, anecdote, promotion
-- content_type: ad_read, cold_open_banter, cast_intro, topic_rundown, main_discussion, guest_interview, promo_read, outro
+- content_type: ad_read, cold_open_banter, cast_intro, topic_rundown,
+  main_discussion, guest_interview, promo_read, outro
 - stance: supportive, critical, mixed, skeptical, descriptive
 - source_confidence: high, medium, low
 """
@@ -66,8 +67,10 @@ CHUNK #{chunk_index} ({start_ts} - {end_ts}):
 {chunk_text}
 ---
 
-Return JSON with all required fields. Use empty arrays/strings where no data found.
-Speaker MUST be from the roster: {roster_json}\
+Return JSON with all required fields. Use empty arrays/strings where no \
+data found.
+Speaker MUST be from the roster:
+{roster_json}\
 """
 
 

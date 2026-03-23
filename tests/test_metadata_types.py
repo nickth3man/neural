@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from neural.metadata_types import (
     ChunkAnchor,
     ChunkMetadata,

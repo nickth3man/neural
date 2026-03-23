@@ -129,8 +129,8 @@
       top: 0;
       z-index: 100;
       background-color: rgba(253, 249, 239, 0.85);
-      backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
       border-bottom: 4px solid var(--surface-container-highest);
       box-shadow: var(--shadow-deep-court);
       padding: var(--space-4) var(--space-6);
@@ -306,6 +306,7 @@
       color: var(--on-surface-variant);
       cursor: pointer;
       transition: all 0.2s ease;
+      -webkit-user-select: none;
       user-select: none;
     }
 

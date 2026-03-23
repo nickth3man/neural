@@ -295,7 +295,9 @@ def document_extraction_schema() -> dict[str, Any]:
             },
             "holiday_theme": {
                 "type": "string",
-                "description": "Holiday or theme framing (e.g., 'Halloween', 'Juneteenth') or empty string.",
+                "description": (
+                    "Holiday or theme framing (e.g., 'Halloween', 'Juneteenth') or empty string."
+                ),
             },
             "topic": {
                 "type": "string",

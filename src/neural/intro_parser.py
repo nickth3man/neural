@@ -54,11 +54,13 @@ CAST_INTRO_PATTERNS: list[re.Pattern[str]] = [
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:legend|nba champion|former|ncaa champion)\s+(?P<name>[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})",
+        r"(?:legend|nba champion|former|ncaa champion)\s+"
+        r"(?P<name>[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?P<name>[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\s+(?:is here|in the (?:building|arena|house))",
+        r"(?P<name>[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\s+"
+        r"(?:is here|in the (?:building|arena|house))",
         re.IGNORECASE,
     ),
     re.compile(
@@ -112,11 +114,13 @@ HOLIDAY_PATTERNS: dict[str, list[re.Pattern[str]]] = {
 # Sponsor/ad-read patterns
 SPONSOR_PATTERNS: list[re.Pattern[str]] = [
     re.compile(
-        r"presented by\s+(?P<sponsor>[A-Za-z\s]+?)(?:\.|,|\s+Woo|\s+World)",
+        r"presented by\s+(?P<sponsor>[A-Za-z\s]+?)"
+        r"(?:\.|,|\s+Woo|\s+World)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:brought to you by|sponsored by|brought to you by|shout out to)\s+(?P<sponsor>[A-Za-z\s&']+)",
+        r"(?:brought to you by|sponsored by|brought to you by|shout out to)\s+"
+        r"(?P<sponsor>[A-Za-z\s&']+)",
         re.IGNORECASE,
     ),
     re.compile(
@@ -128,7 +132,8 @@ SPONSOR_PATTERNS: list[re.Pattern[str]] = [
 # Topic rundown patterns
 TOPIC_RUNDOWN_PATTERNS: list[re.Pattern[str]] = [
     re.compile(
-        r"(?:here'?s what'?s cracking|here'?s what'?s on tap|topics for today|today'?s (?:topics|lineup))",
+        r"(?:here'?s what'?s cracking|here'?s what'?s on tap|topics for today|"
+        r"today'?s (?:topics|lineup))",
         re.IGNORECASE,
     ),
     re.compile(
@@ -170,7 +175,10 @@ EPISODE_TYPE_SIGNALS: dict[EpisodeType, list[re.Pattern[str]]] = {
         re.compile(r"\bnba news\b", re.IGNORECASE),
     ],
     EpisodeType.SEASON_PREMIERE: [
-        re.compile(r"\bseason (?:premiere|opener|kickoff|tip.?off)\b", re.IGNORECASE),
+        re.compile(
+            r"\bseason (?:premiere|opener|kickoff|tip.?off)\b",
+            re.IGNORECASE,
+        ),
         re.compile(r"\bwelcome back\b", re.IGNORECASE),
     ],
 }
@@ -408,7 +416,14 @@ def _extract_sponsors(intro_text: str) -> list[str]:
                     sponsors.append(sponsor)
 
     # Known sponsors from transcript patterns
-    known_sponsors = ["Underdog", "Wendy's", "Starbucks", "PC Financial", "Tia Rosa", "Adidas"]
+    known_sponsors = [
+        "Underdog",
+        "Wendy's",
+        "Starbucks",
+        "PC Financial",
+        "Tia Rosa",
+        "Adidas",
+    ]
     for sponsor in known_sponsors:
         if sponsor.lower() in intro_text.lower() and sponsor not in sponsors:
             sponsors.append(sponsor)

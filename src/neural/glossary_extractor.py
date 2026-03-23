@@ -31,18 +31,26 @@ Your task is to extract structured metadata from the intro window of a transcrip
 
 Rules:
 1. Use ONLY information explicitly stated in the text.
-2. For host names, match against the cast introductions (e.g., "we've got the legend Gilbert Arenas").
-3. For guest names, only include people explicitly labeled as "special guest" or "first appearance."
-4. For holiday themes, detect holiday or theme references (Halloween, Christmas, Juneteenth, etc.).
-5. For episode type, classify based on the show's framing (recap, reaction, prediction, guest interview, etc.).
-6. For topic, extract the primary topic from topic-rundown lines ("here's what's cracking").
+2. For host names, match against the cast introductions (e.g., \
+"we've got the legend Gilbert Arenas").
+3. For guest names, only include people explicitly labeled as \
+"special guest" or "first appearance."
+4. For holiday themes, detect holiday or theme references \
+(Halloween, Christmas, Juneteenth, etc.).
+5. For episode type, classify based on the show's framing \
+(recap, reaction, prediction, guest interview, etc.).
+6. For topic, extract the primary topic from topic-rundown lines \
+("here's what's cracking").
 7. Build the episode roster from ALL speaker names mentioned in cast intros.
 8. Return valid JSON matching the schema exactly. No markdown, no explanation.
 
 Controlled vocabularies:
-- episode_type: season_premiere, recap, reaction, prediction, guest_interview, trade_breakdown, playoff_recap, league_news
-- content_type: ad_read, cold_open_banter, cast_intro, topic_rundown, main_discussion, guest_interview, promo_read, outro
-- topic_category: team, player, league, event, business, social_justice, show_meta, sponsor, holiday
+- episode_type: season_premiere, recap, reaction, prediction, \
+guest_interview, trade_breakdown, playoff_recap, league_news
+- content_type: ad_read, cold_open_banter, cast_intro, topic_rundown, \
+main_discussion, guest_interview, promo_read, outro
+- topic_category: team, player, league, event, business, \
+social_justice, show_meta, sponsor, holiday
 """
 
 DOCUMENT_EXTRACTION_USER_TEMPLATE = """\
