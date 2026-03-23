@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from neural.chunking import ChunkingConfig, TranscriptChunk
 from neural.metadata_index import RetrievalFilters, load_metadata_index
 from neural.reranking import RerankerConfig

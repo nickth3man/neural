@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+
 from neural.chunking import ChunkingConfig, TranscriptChunk
 from neural.vector_index import (
     build_faiss_index,

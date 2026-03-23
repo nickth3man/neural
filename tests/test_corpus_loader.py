@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+
 from neural.corpus import (
     format_timestamp,
     load_corpus,

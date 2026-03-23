@@ -6,6 +6,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+
 from neural.openrouter import OpenRouterError, complete_chat, stream_chat
 
 

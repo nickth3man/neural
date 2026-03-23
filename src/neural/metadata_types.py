@@ -6,7 +6,7 @@ Defines the glossary-driven enums and tiered metadata structures from PLAN.md.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ============================================================================
@@ -14,7 +14,7 @@ from typing import Any
 # ============================================================================
 
 
-class EpisodeType(str, Enum):
+class EpisodeType(StrEnum):
     """Show format classification from intro-window cues."""
 
     SEASON_PREMIERE = "season_premiere"
@@ -27,7 +27,7 @@ class EpisodeType(str, Enum):
     LEAGUE_NEWS = "league_news"
 
 
-class ContentType(str, Enum):
+class ContentType(StrEnum):
     """Segment-level content classification."""
 
     AD_READ = "ad_read"
@@ -40,7 +40,7 @@ class ContentType(str, Enum):
     OUTRO = "outro"
 
 
-class TopicCategory(str, Enum):
+class TopicCategory(StrEnum):
     """Constrained taxonomy for topic classification."""
 
     TEAM = "team"
@@ -54,7 +54,7 @@ class TopicCategory(str, Enum):
     HOLIDAY = "holiday"
 
 
-class ConversationType(str, Enum):
+class ConversationType(StrEnum):
     """Dialogue mode classification."""
 
     DEBATE = "debate"
@@ -66,7 +66,7 @@ class ConversationType(str, Enum):
     PROMOTION = "promotion"
 
 
-class ClaimType(str, Enum):
+class ClaimType(StrEnum):
     """Statement classification."""
 
     FACT = "fact"
@@ -77,7 +77,7 @@ class ClaimType(str, Enum):
     PROMOTION = "promotion"
 
 
-class Stance(str, Enum):
+class Stance(StrEnum):
     """Speaker stance toward a topic."""
 
     SUPPORTIVE = "supportive"
@@ -87,7 +87,7 @@ class Stance(str, Enum):
     DESCRIPTIVE = "descriptive"
 
 
-class SourceConfidence(str, Enum):
+class SourceConfidence(StrEnum):
     """Confidence level for extracted metadata."""
 
     HIGH = "high"
@@ -295,7 +295,10 @@ def document_extraction_schema() -> dict[str, Any]:
             },
             "holiday_theme": {
                 "type": "string",
-                "description": "Holiday or theme framing (e.g., 'Halloween', 'Juneteenth') or empty string.",
+                "description": (
+                    "Holiday or theme framing (e.g., 'Halloween', 'Juneteenth') "
+                    "or empty string."
+                ),
             },
             "topic": {
                 "type": "string",
