@@ -10,9 +10,9 @@ Python 3.12 retrieval stack for Gil's Arena transcripts: scrape PodScripts pages
 ## STRUCTURE
 ```text
 ./
-|- neural/        core transcript, embedding, retrieval, and OpenRouter modules
+|- src/neural/    core transcript, embedding, retrieval, and OpenRouter modules
 |- scripts/       executable pipeline entry points
-|- webapp/        FastAPI app plus Jinja template
+|- src/webapp/    FastAPI app plus Jinja template
 |- tests/         flat pytest suite
 |- docs/          blueprint, tech spec, ADRs, roadmap
 |- evals/         seed evaluation queries
@@ -23,15 +23,15 @@ Python 3.12 retrieval stack for Gil's Arena transcripts: scrape PodScripts pages
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Parse transcript text | `neural/corpus.py` | Timestamp parsing, continuation-line merge rules |
-| Define chunk windows | `neural/chunking.py` | Deterministic overlapping windows |
-| Build or load index artifacts | `neural/vector_index.py` | `index.faiss`, `chunks.json`, `config.json` |
-| Run retrieval in code | `neural/retrieval.py` | Shared path used by CLI and web app |
-| Call OpenRouter | `neural/openrouter.py` | Stdlib `urllib`, no SDK |
+| Parse transcript text | `src/neural/corpus.py` | Timestamp parsing, continuation-line merge rules |
+| Define chunk windows | `src/neural/chunking.py` | Deterministic overlapping windows |
+| Build or load index artifacts | `src/neural/vector_index.py` | `index.faiss`, `chunks.json`, `config.json` |
+| Run retrieval in code | `src/neural/retrieval.py` | Shared path used by CLI and web app |
+| Call OpenRouter | `src/neural/openrouter.py` | Stdlib `urllib`, no SDK |
 | Scrape transcripts | `scripts/scrape_podscripts.py` | Largest script; robots, retries, manifest |
 | Build index from corpus | `scripts/build_transcript_index.py` | `gil/transcripts` -> `data/transcript_index` |
 | Extract metadata | `scripts/extract_metadata.py` | Deterministic + optional LLM enrichment |
-| Serve chat UI | `webapp/main.py` | Loads `.env`, index bundle, `/api/chat` |
+| Serve chat UI | `src/webapp/main.py` | Loads `.env`, index bundle, `/api/chat` |
 | Validate behavior | `tests/` | Flat `test_*.py`, heavy monkeypatch/tmp_path usage |
 | Understand design intent | `docs/adr/` | Retrieval-first + citation-first decisions |
 
@@ -40,20 +40,20 @@ Python 3.12 retrieval stack for Gil's Arena transcripts: scrape PodScripts pages
 |--------|------|----------|------|
 | `ScraperConfig` | dataclass | `scripts/scrape_podscripts.py` | Scraper defaults, paths, retry/rate-limit knobs |
 | `run_scraper` | function | `scripts/scrape_podscripts.py` | Main scrape flow |
-| `ChunkingConfig` | dataclass | `neural/chunking.py` | Line-window chunk policy |
-| `TranscriptDocument` | dataclass | `neural/corpus.py` | Structured transcript file |
-| `SearchResult` | dataclass | `neural/vector_index.py` | Ranked retrieval hit |
-| `RetrievalBundle` | dataclass | `neural/retrieval.py` | In-memory index + chunk metadata + config |
-| `complete_chat` | function | `neural/openrouter.py` | Hosted LLM call |
-| `app` | FastAPI app | `webapp/main.py` | Web entry point |
+| `ChunkingConfig` | dataclass | `src/neural/chunking.py` | Line-window chunk policy |
+| `TranscriptDocument` | dataclass | `src/neural/corpus.py` | Structured transcript file |
+| `SearchResult` | dataclass | `src/neural/vector_index.py` | Ranked retrieval hit |
+| `RetrievalBundle` | dataclass | `src/neural/retrieval.py` | In-memory index + chunk metadata + config |
+| `complete_chat` | function | `src/neural/openrouter.py` | Hosted LLM call |
+| `app` | FastAPI app | `src/webapp/main.py` | Web entry point |
 
 ## CONVENTIONS
 - Use `uv`, not `pip`/Poetry; CI installs with `uv sync --all-groups`.
 - Keep code Python 3.12-friendly; repo pins 3.12 in `.python-version` and `pyproject.toml`.
 - Ruff is intentionally narrow: `E,F,I,UP`; line length is 100.
 - Type checking goes through `ty`; `mypy.ini` mainly exists for editors.
-- Tests may import from both repo root and `scripts/`; `pythonpath = [".", "scripts"]` is deliberate.
-- `webapp/main.py` loads `.env` from repo root; secrets belong in `.env`, never in tracked files.
+- Tests may import from `src/`, repo root, and `scripts/`; `pythonpath = ["src", ".", "scripts"]` is deliberate.
+- `src/webapp/main.py` loads `.env` from repo root; secrets belong in `.env`, never in tracked files.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - Do not treat whole episodes as the first retrieval unit; chunk by timestamped windows.
@@ -72,13 +72,13 @@ Python 3.12 retrieval stack for Gil's Arena transcripts: scrape PodScripts pages
 ```bash
 uv sync
 uv sync --all-groups
-uv run ruff check neural scripts tests webapp
+uv run ruff check src scripts tests webapp
 uv run ty check
 uv run pytest
 uv run python scripts/scrape_podscripts.py --help
 uv run python scripts/build_transcript_index.py
 uv run python scripts/query_transcripts.py "Team USA basketball"
-uv run uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn --app-dir src webapp.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ## NOTES

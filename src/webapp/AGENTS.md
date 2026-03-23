@@ -6,10 +6,10 @@ Minimal FastAPI + Jinja UI for citation-first chat over the local transcript ind
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Startup/index loading | `webapp/main.py` | FastAPI lifespan loads bundle from `GIL_INDEX_DIR` |
-| API schema | `webapp/main.py` | `ChatTurn`, `ChatRequest`, `ChatResponse` |
-| Chat endpoint | `webapp/main.py` | `/api/chat` retrieval-only and generation branches |
-| UI markup/JS | `webapp/templates/chat.html` | Single template, inline styles, inline fetch logic |
+| Startup/index loading | `src/webapp/main.py` | FastAPI lifespan loads bundle from `GIL_INDEX_DIR` |
+| API schema | `src/webapp/main.py` | `ChatTurn`, `ChatRequest`, `ChatResponse` |
+| Chat endpoint | `src/webapp/main.py` | `/api/chat` retrieval-only and generation branches |
+| UI markup/JS | `src/webapp/templates/chat.html` | Single template, inline styles, inline fetch logic |
 
 ## CONVENTIONS
 - The app loads `.env` from repo root at startup.
@@ -23,10 +23,10 @@ Minimal FastAPI + Jinja UI for citation-first chat over the local transcript ind
 - Do not store API keys in code or templates; environment only.
 
 ## NOTES
-- `webapp/templates/chat.html` is intentionally simple and single-file; keep changes easy to audit.
+- `src/webapp/templates/chat.html` is intentionally simple and single-file; keep changes easy to audit.
 - `tests/test_webapp.py` covers the main happy path, validation, missing key, and missing index cases.
 
 ## COMMANDS
-- `uv run uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8000`
+- `uv run uvicorn --app-dir src webapp.main:app --reload --host 127.0.0.1 --port 8000`
 - Build the index first if `GIL_INDEX_DIR` does not point at a valid bundle.
 - Use retrieval-only mode to debug evidence output without involving OpenRouter.

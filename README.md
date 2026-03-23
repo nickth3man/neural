@@ -108,7 +108,7 @@ After building the index, run the local FastAPI UI:
 # Optional: copy env template and set secrets (loaded automatically from repo root)
 cp .env.example .env   # then edit .env — .env is gitignored
 
-uv run uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn --app-dir src webapp.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 You can instead `export` the same variables listed in [`.env.example`](.env.example); see that file for `OPENROUTER_*` and `GIL_INDEX_DIR`.
@@ -153,9 +153,9 @@ The script checks `robots.txt`, waits between list-page and episode requests (de
 ## Contributing
 
 ```bash
-uv run ruff check neural scripts tests webapp
+uv run ruff check src scripts tests webapp
 uv run ty check
 uv run pytest
 ```
 
-Tests import both the scraper module and the `neural` package with `pythonpath = [".", "scripts"]` in `pyproject.toml`.
+Tests import from `src/`, the repo root, and `scripts/` with `pythonpath = ["src", ".", "scripts"]` in `pyproject.toml`.

@@ -86,5 +86,5 @@ Optional future fields for `evals/gil_queries.json` or a sibling file: `min_cita
 | Tech spec test cases | [gil-transcript-tech-spec.md](./gil-transcript-tech-spec.md#7-test-case-specifications) |
 | Seed queries | [evals/gil_queries.json](../evals/gil_queries.json) |
 | Query CLI | [scripts/query_transcripts.py](../scripts/query_transcripts.py) |
-| Web app | [webapp/main.py](../webapp/main.py) |
+| Web app | [src/webapp/main.py](../src/webapp/main.py) |
 | Chatbot ADR | [adr/002-citation-first-web-chatbot.md](./adr/002-citation-first-web-chatbot.md) |

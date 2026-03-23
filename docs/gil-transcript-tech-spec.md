@@ -212,7 +212,7 @@ The query output must print:
 
 ## 9. Chat Application Surface (Phase Two)
 
-The optional local web chatbot (`webapp/main.py`) must:
+The optional local web chatbot (`src/webapp/main.py`) must:
 
 - Load the same index bundle as the query CLI (`index.faiss`, `chunks.json`, `config.json`).
 - Call shared retrieval logic (`neural.retrieval.retrieve`) so ranking matches `scripts/query_transcripts.py`.
@@ -246,4 +246,4 @@ The optional local web chatbot (`webapp/main.py`) must:
 | Scraper output format origin | [Scraper parser](../scripts/scrape_podscripts.py) | `scripts/scrape_podscripts.py` |
 | Transcript directory | [Corpus path](../gil/transcripts) | `gil/transcripts` |
 | Web chatbot ADR | [ADR 002](./adr/002-citation-first-web-chatbot.md) | — |
-| Web app entry | [webapp/main.py](../webapp/main.py) | — |
+| Web app entry | [src/webapp/main.py](../src/webapp/main.py) | — |

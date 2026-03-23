@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Citation-first Gil transcript chatbot (FastAPI + Jinja2)."""
 
 from __future__ import annotations
@@ -5,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -12,10 +14,17 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SRC_ROOT = _REPO_ROOT / "src"
+if str(_SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SRC_ROOT))
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+
 from neural.chat_prompt import build_rag_messages
 from neural.ingestion_status import summarize_ingestion_status
 from neural.metadata_index import MetadataIndex, RetrievalFilters, load_metadata_index
@@ -27,9 +36,7 @@ from neural.retrieval import (
     load_retrieval_bundle,
     retrieve,
 )
-from pydantic import BaseModel, Field
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(_REPO_ROOT / ".env")
 
 DEFAULT_INDEX_DIR = Path("data/transcript_index")

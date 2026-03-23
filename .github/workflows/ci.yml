@@ -24,7 +24,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Ruff
-        run: uv run ruff check neural scripts tests webapp
+        run: uv run ruff check src scripts tests
 
       - name: ty
         run: uv run ty check

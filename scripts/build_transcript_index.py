@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from neural.chunking import ChunkingConfig, chunk_corpus
 from neural.corpus import load_corpus
@@ -94,8 +95,7 @@ def main() -> None:
     )
 
     print(
-        f"Indexed {len(documents)} transcripts into {len(chunks)} chunks "
-        f"with model {args.model}."
+        f"Indexed {len(documents)} transcripts into {len(chunks)} chunks with model {args.model}."
     )
     print(f"Artifacts written to {args.output_dir}")
 

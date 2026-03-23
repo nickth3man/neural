@@ -55,7 +55,7 @@ This document tracks **follow-on** work once semantic indexing and query CLI are
 
 ### 5.1 Web App MVP (implemented)
 
-- **Entry:** `uv run uvicorn webapp.main:app --reload` (from repo root; see [README](../README.md)).
+- **Entry:** `uv run uvicorn --app-dir src webapp.main:app --reload` (from repo root; see [README](../README.md)).
 - **Index:** Read-only load of `data/transcript_index` (or `GIL_INDEX_DIR`); same artifacts as the CLI.
 - **Generation:** OpenRouter (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`); retrieval uses local `sentence-transformers` + FAISS only.
 - **UX:** Answer panel plus an evidence panel listing each hit with rank, score, episode, file, timestamps, and chunk text. **Retrieval-only** toggle skips the LLM.
