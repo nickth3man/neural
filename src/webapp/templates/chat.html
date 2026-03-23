@@ -26,6 +26,7 @@
       --on-primary-container: #f7fff2;
       --primary-fixed: #d2e9cd;
       --primary-fixed-dim: #b6cdb2;
+      --on-primary-fixed: #1a2e18;
 
       /* Secondary — Indigo Navy */
       --secondary: #4f5f77;
@@ -1041,6 +1042,9 @@
   </footer>
 
   <script>
+    const API_CHAT = "/api/chat";
+    const API_CHAT_STREAM = "/api/chat/stream";
+
     const q = document.getElementById("q");
     const send = document.getElementById("send");
     const retrievalOnly = document.getElementById("retrievalOnly");
@@ -1060,34 +1064,75 @@
     const citeBox = document.getElementById("citeBox");
     const citationsEl = document.getElementById("citations");
 
+    function trimToNull(s) {
+      const t = String(s).trim();
+      return t ? t : null;
+    }
+
     function requestBody(message) {
       return {
         message,
         top_k: parseInt(topK.value, 10) || 5,
         retrieval_only: retrievalOnly.checked,
         history: [],
-        episode_type: episodeType.value.trim() || null,
-        guest_name: guestName.value.trim() || null,
-        speaker: speaker.value.trim() || null,
-        team: team.value.trim() || null,
-        topic: topic.value.trim() || null,
-        source_file: sourceFile.value.trim() || null,
+        episode_type: trimToNull(episodeType.value),
+        guest_name: trimToNull(guestName.value),
+        speaker: trimToNull(speaker.value),
+        team: trimToNull(team.value),
+        topic: trimToNull(topic.value),
+        source_file: trimToNull(sourceFile.value),
         rerank: rerank.checked,
         rerank_top_n: parseInt(rerankTopN.value, 10) || 20,
       };
+    }
+
+    function resetResponsePanels(placeholderAnswer) {
+      errEl.textContent = "";
+      answerBox.hidden = false;
+      citeBox.hidden = false;
+      answerEl.textContent = placeholderAnswer;
+      citationsEl.innerHTML = "";
+    }
+
+    function parseSseBlock(rawBlock) {
+      const lines = rawBlock.split("\n");
+      let eventName = "message";
+      const dataParts = [];
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventName = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          dataParts.push(line.slice(6));
+        }
+      }
+      if (dataParts.length === 0) {
+        return null;
+      }
+      const dataJoined = dataParts.join("\n");
+      return { eventName, payload: JSON.parse(dataJoined) };
+    }
+
+    function applySsePayload(eventName, payload) {
+      if (eventName === "citations") {
+        renderCitations(payload.citations || []);
+      } else if (eventName === "answer") {
+        answerEl.textContent += payload.delta || "";
+      } else if (eventName === "error") {
+        errEl.textContent = payload.message || "Streaming failed";
+      } else if (eventName === "done") {
+        if (payload.error) errEl.textContent = payload.error;
+        if (!answerEl.textContent && payload.answer) answerEl.textContent = payload.answer;
+      }
     }
 
     send.addEventListener("click", async () => {
       const message = q.value.trim();
       if (!message) return;
       send.disabled = true;
-      errEl.textContent = "";
-      answerBox.hidden = false;
-      citeBox.hidden = false;
-      answerEl.textContent = "…";
-      citationsEl.innerHTML = "";
+      resetResponsePanels("…");
       try {
         if (streaming.checked) {
+          answerEl.textContent = "";
           await streamResponse(message);
         } else {
           await fetchJsonResponse(message);
@@ -1101,7 +1146,7 @@
     });
 
     async function fetchJsonResponse(message) {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(API_CHAT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody(message)),
@@ -1118,8 +1163,7 @@
     }
 
     async function streamResponse(message) {
-      answerEl.textContent = "";
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch(API_CHAT_STREAM, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody(message)),
@@ -1139,30 +1183,14 @@
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split("\n\n");
         buffer = events.pop() || "";
-        events.forEach(handleSseEvent);
+        for (const block of events) {
+          const parsed = parseSseBlock(block);
+          if (parsed) applySsePayload(parsed.eventName, parsed.payload);
+        }
       }
-      if (buffer.trim()) handleSseEvent(buffer);
-    }
-
-    function handleSseEvent(rawEvent) {
-      const lines = rawEvent.split("\n");
-      let event = "message";
-      let data = "";
-      lines.forEach((line) => {
-        if (line.startsWith("event: ")) event = line.slice(7).trim();
-        if (line.startsWith("data: ")) data += line.slice(6);
-      });
-      if (!data) return;
-      const payload = JSON.parse(data);
-      if (event === "citations") {
-        renderCitations(payload.citations || []);
-      } else if (event === "answer") {
-        answerEl.textContent += payload.delta || "";
-      } else if (event === "error") {
-        errEl.textContent = payload.message || "Streaming failed";
-      } else if (event === "done") {
-        if (payload.error) errEl.textContent = payload.error;
-        if (!answerEl.textContent && payload.answer) answerEl.textContent = payload.answer;
+      if (buffer.trim()) {
+        const parsed = parseSseBlock(buffer);
+        if (parsed) applySsePayload(parsed.eventName, parsed.payload);
       }
     }
 

@@ -36,6 +36,7 @@ from neural.retrieval import (
     load_retrieval_bundle,
     retrieve,
 )
+from neural.vector_index import SearchResult
 
 load_dotenv(_REPO_ROOT / ".env")
 
@@ -46,6 +47,11 @@ DEFAULT_MANIFEST_PATH = Path("gil/transcripts/manifest.json")
 DEFAULT_TRANSCRIPTS_DIR = Path("gil/transcripts")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 logger = logging.getLogger(__name__)
+
+MISSING_OPENROUTER_KEY_ANSWER = (
+    "Set OPENROUTER_API_KEY to enable answer generation. Evidence excerpts are listed below."
+)
+MISSING_OPENROUTER_KEY_ERROR = "OPENROUTER_API_KEY not set"
 
 
 def _configure_logging() -> None:
@@ -166,6 +172,44 @@ def _get_metadata_index(request: Request) -> MetadataIndex | None:
     return None
 
 
+def _index_loaded(request: Request) -> bool:
+    return getattr(request.app.state, "bundle", None) is not None
+
+
+def _metadata_loaded(request: Request) -> bool:
+    return getattr(request.app.state, "metadata_index", None) is not None
+
+
+def _retrieve_for_chat(
+    request: Request,
+    body: ChatRequest,
+) -> tuple[list[SearchResult], list[dict[str, Any]]]:
+    """Run retrieval and build citation payloads (shared by JSON and SSE chat)."""
+    bundle = _get_bundle(request)
+    metadata_index = _get_metadata_index(request)
+    results = retrieve(
+        bundle,
+        body.message,
+        top_k=body.top_k,
+        model_override=None,
+        metadata_index=metadata_index,
+        filters=_build_filters(body),
+        reranker=_build_reranker(body),
+    )
+    citations = citations_from_results(results, metadata_index)
+    return results, citations
+
+
+def _rag_messages(body: ChatRequest, results: list[SearchResult]) -> list[dict[str, str]]:
+    history_payload = [t.model_dump() for t in body.history]
+    return build_rag_messages(body.message, results, history=history_payload)
+
+
+def _openrouter_api_key() -> str | None:
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    return key or None
+
+
 def _build_filters(body: ChatRequest) -> RetrievalFilters:
     return RetrievalFilters(
         episode_type=body.episode_type,
@@ -207,8 +251,8 @@ async def chat_page(request: Request) -> HTMLResponse:
         request=request,
         name="chat.html",
         context={
-            "index_ok": getattr(request.app.state, "bundle", None) is not None,
-            "metadata_ok": getattr(request.app.state, "metadata_index", None) is not None,
+            "index_ok": _index_loaded(request),
+            "metadata_ok": _metadata_loaded(request),
         },
     )
 
@@ -218,8 +262,8 @@ async def health(request: Request) -> dict[str, Any]:
     uptime_seconds = round(time.time() - request.app.state.started_at, 3)
     return {
         "status": "ok",
-        "index_loaded": getattr(request.app.state, "bundle", None) is not None,
-        "metadata_loaded": getattr(request.app.state, "metadata_index", None) is not None,
+        "index_loaded": _index_loaded(request),
+        "metadata_loaded": _metadata_loaded(request),
         "index_dir": str(getattr(request.app.state, "index_dir", DEFAULT_INDEX_DIR)),
         "metadata_dir": str(getattr(request.app.state, "metadata_dir", ""))
         if getattr(request.app.state, "metadata_dir", None)
@@ -231,7 +275,7 @@ async def health(request: Request) -> dict[str, Any]:
 
 @app.get("/ready")
 async def ready(request: Request) -> dict[str, Any]:
-    if getattr(request.app.state, "bundle", None) is None:
+    if not _index_loaded(request):
         raise HTTPException(status_code=503, detail="Index not loaded")
     return {"status": "ready"}
 
@@ -252,21 +296,8 @@ async def ingestion_status(request: Request) -> dict[str, Any]:
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def api_chat(request: Request, body: ChatRequest) -> ChatResponse:
-    bundle = _get_bundle(request)
-    metadata_index = _get_metadata_index(request)
-    filters = _build_filters(body)
-    reranker = _build_reranker(body)
     request.app.state.metrics["chat_requests"] += 1
-    results = retrieve(
-        bundle,
-        body.message,
-        top_k=body.top_k,
-        model_override=None,
-        metadata_index=metadata_index,
-        filters=filters,
-        reranker=reranker,
-    )
-    citations = citations_from_results(results, metadata_index)
+    results, citations = _retrieve_for_chat(request, body)
 
     if body.retrieval_only:
         return ChatResponse(
@@ -276,20 +307,16 @@ async def api_chat(request: Request, body: ChatRequest) -> ChatResponse:
             error=None,
         )
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
+    api_key = _openrouter_api_key()
+    if api_key is None:
         return ChatResponse(
-            answer=(
-                "Set OPENROUTER_API_KEY to enable answer generation. "
-                "Evidence excerpts are listed below."
-            ),
+            answer=MISSING_OPENROUTER_KEY_ANSWER,
             citations=citations,
             generation_skipped=True,
-            error="OPENROUTER_API_KEY not set",
+            error=MISSING_OPENROUTER_KEY_ERROR,
         )
 
-    history_payload = [t.model_dump() for t in body.history]
-    messages = build_rag_messages(body.message, results, history=history_payload)
+    messages = _rag_messages(body, results)
 
     try:
         answer = complete_chat(
@@ -315,23 +342,8 @@ async def api_chat(request: Request, body: ChatRequest) -> ChatResponse:
 
 @app.post("/api/chat/stream")
 async def api_chat_stream(request: Request, body: ChatRequest) -> StreamingResponse:
-    bundle = _get_bundle(request)
-    metadata_index = _get_metadata_index(request)
-    filters = _build_filters(body)
-    reranker = _build_reranker(body)
     request.app.state.metrics["stream_requests"] += 1
-    results = retrieve(
-        bundle,
-        body.message,
-        top_k=body.top_k,
-        model_override=None,
-        metadata_index=metadata_index,
-        filters=filters,
-        reranker=reranker,
-    )
-    citations = citations_from_results(results, metadata_index)
-    history_payload = [t.model_dump() for t in body.history]
-    messages = build_rag_messages(body.message, results, history=history_payload)
+    results, citations = _retrieve_for_chat(request, body)
 
     def event_stream():
         yield _sse_event("citations", {"citations": citations})
@@ -341,23 +353,20 @@ async def api_chat_stream(request: Request, body: ChatRequest) -> StreamingRespo
             yield _sse_event("done", {"answer": answer, "generation_skipped": True})
             return
 
-        api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        if not api_key:
-            answer = (
-                "Set OPENROUTER_API_KEY to enable answer generation. "
-                "Evidence excerpts are listed below."
-            )
-            yield _sse_event("answer", {"delta": answer})
+        api_key = _openrouter_api_key()
+        if api_key is None:
+            yield _sse_event("answer", {"delta": MISSING_OPENROUTER_KEY_ANSWER})
             yield _sse_event(
                 "done",
                 {
-                    "answer": answer,
+                    "answer": MISSING_OPENROUTER_KEY_ANSWER,
                     "generation_skipped": True,
-                    "error": "OPENROUTER_API_KEY not set",
+                    "error": MISSING_OPENROUTER_KEY_ERROR,
                 },
             )
             return
 
+        messages = _rag_messages(body, results)
         answer_parts: list[str] = []
         try:
             for chunk in stream_chat(

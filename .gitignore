@@ -6,4 +6,5 @@ __pycache__/
 .ty/
 .mypy_cache/
 .pytest_cache/
+.coverage
 data/
