@@ -46,8 +46,9 @@ class TranscriptChunk:
     end_seconds: int
     chunk_text: str
     line_count: int
+    chunk_id: int | None = None
 
-    def to_dict(self) -> dict[str, str | int]:
+    def to_dict(self) -> dict[str, str | int | None]:
         """Return a JSON-serializable chunk mapping."""
         return asdict(self)
 

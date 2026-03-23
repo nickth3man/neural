@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from neural.chunking import ChunkingConfig, TranscriptChunk
+from neural.embeddings import LEGACY_EMBEDDING_BACKEND_SENTENCE_TRANSFORMERS
 from neural.metadata_index import RetrievalFilters, load_metadata_index
 from neural.reranking import RerankerConfig
 from neural.retrieval import (
@@ -146,6 +147,89 @@ def test_retrieve_invalid_top_k(tmp_path: Path) -> None:
         retrieve(bundle, "q", top_k=0)
 
 
+def test_retrieve_rejects_legacy_sentence_transformers_index(tmp_path: Path) -> None:
+    embeddings = _normalized([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    index = build_faiss_index(embeddings)
+    chunks = [
+        TranscriptChunk(
+            episode_title="Episode_A",
+            source_file="a.txt",
+            start_timestamp="00:00:01",
+            end_timestamp="00:00:02",
+            start_seconds=1,
+            end_seconds=2,
+            chunk_text="alpha chunk",
+            line_count=2,
+        ),
+        TranscriptChunk(
+            episode_title="Episode_B",
+            source_file="b.txt",
+            start_timestamp="00:00:10",
+            end_timestamp="00:00:12",
+            start_seconds=10,
+            end_seconds=12,
+            chunk_text="beta chunk",
+            line_count=2,
+        ),
+    ]
+    save_index_artifacts(
+        output_dir=tmp_path,
+        index=index,
+        chunks=chunks,
+        model_name="fixture-model",
+        chunking_config=ChunkingConfig(),
+        transcripts_dir=Path("gil/transcripts"),
+        embedding_backend=LEGACY_EMBEDDING_BACKEND_SENTENCE_TRANSFORMERS,
+    )
+    bundle = load_retrieval_bundle(tmp_path)
+    with pytest.raises(ValueError, match="Rebuild the index"):
+        retrieve(bundle, "q", top_k=1)
+
+
+def test_retrieve_rejects_index_missing_embedding_backend_key(tmp_path: Path) -> None:
+    """Predates embedding_backend field; treated as legacy local index."""
+    embeddings = _normalized([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    index = build_faiss_index(embeddings)
+    chunks = [
+        TranscriptChunk(
+            episode_title="Episode_A",
+            source_file="a.txt",
+            start_timestamp="00:00:01",
+            end_timestamp="00:00:02",
+            start_seconds=1,
+            end_seconds=2,
+            chunk_text="alpha chunk",
+            line_count=2,
+        ),
+        TranscriptChunk(
+            episode_title="Episode_B",
+            source_file="b.txt",
+            start_timestamp="00:00:10",
+            end_timestamp="00:00:12",
+            start_seconds=10,
+            end_seconds=12,
+            chunk_text="beta chunk",
+            line_count=2,
+        ),
+    ]
+    save_index_artifacts(
+        output_dir=tmp_path,
+        index=index,
+        chunks=chunks,
+        model_name="fixture-model",
+        chunking_config=ChunkingConfig(),
+        transcripts_dir=Path("gil/transcripts"),
+    )
+    config_path = tmp_path / "config.json"
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    del cfg["embedding_backend"]
+    config_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+
+    bundle = load_retrieval_bundle(tmp_path)
+    with pytest.raises(ValueError, match="Rebuild the index"):
+        retrieve(bundle, "q", top_k=1)
+
+
 def test_retrieve_uses_config_model_and_ranking(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -158,6 +242,7 @@ def test_retrieve_uses_config_model_and_ranking(
         *,
         model_name: str = "fixture-model",
         normalize_embeddings: bool = True,
+        **_: object,
     ) -> np.ndarray:
         assert model_name == "fixture-model"
         assert texts == ["find alpha"]
@@ -178,6 +263,7 @@ def test_retrieve_model_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         *,
         model_name: str,
         normalize_embeddings: bool = True,
+        **_: object,
     ) -> np.ndarray:
         assert model_name == "other-model"
         return np.asarray([[0.0, 1.0, 0.0]], dtype="float32")
@@ -199,7 +285,7 @@ def test_retrieve_from_disk_loads_bundle(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr("neural.retrieval.load_retrieval_bundle", tracing_load)
     monkeypatch.setattr(
         "neural.retrieval.encode_texts",
-        lambda texts, model_name="fixture-model", normalize_embeddings=True: np.asarray(
+        lambda texts, model_name="fixture-model", normalize_embeddings=True, **kwargs: np.asarray(
             [[1.0, 0.0, 0.0]], dtype="float32"
         ),
     )
@@ -238,7 +324,7 @@ def test_retrieve_applies_metadata_filters(tmp_path: Path, monkeypatch: pytest.M
 
     monkeypatch.setattr(
         "neural.retrieval.encode_texts",
-        lambda texts, model_name="fixture-model", normalize_embeddings=True: np.asarray(
+        lambda texts, model_name="fixture-model", normalize_embeddings=True, **kwargs: np.asarray(
             [[0.0, 1.0, 0.0]],
             dtype="float32",
         ),
@@ -260,7 +346,7 @@ def test_retrieve_applies_reranking(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(
         "neural.retrieval.encode_texts",
-        lambda texts, model_name="fixture-model", normalize_embeddings=True: np.asarray(
+        lambda texts, model_name="fixture-model", normalize_embeddings=True, **kwargs: np.asarray(
             [[1.0, 0.0, 0.0]],
             dtype="float32",
         ),

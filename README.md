@@ -1,6 +1,6 @@
 # neural
 
-Utilities for scraping, indexing, and querying **Gil's Arena** podcast transcripts from [PodScripts.co](https://podscripts.co).
+Utilities for indexing and querying **Gil's Arena** podcast transcripts. Place transcript `.txt` files under `gil/transcripts/` (or pass `--transcripts-dir`), then build a local FAISS index and run the citation-first RAG chatbot.
 
 ## Requirements
 
@@ -13,38 +13,13 @@ Utilities for scraping, indexing, and querying **Gil's Arena** podcast transcrip
 uv sync
 ```
 
-This installs runtime deps (`requests`, `beautifulsoup4`, `tqdm`, `sentence-transformers`, `faiss-cpu`, `numpy`, `fastapi`, `uvicorn`, `jinja2`) and the default **dev** group (`ruff`, `ty`, `pytest`). Use `uv sync --all-groups` if you add other dependency groups later.
+This installs runtime deps (`requests`, `beautifulsoup4`, `tqdm`, `sentence-transformers` for cross-encoder reranking, `faiss-cpu`, `numpy`, `fastapi`, `uvicorn`, `jinja2`) and the default **dev** group (`ruff`, `ty`, `pytest`). Use `uv sync --all-groups` if you add other dependency groups later.
 
 ## Usage
 
-### Scrape Transcripts
-
-Run the scraper with Python (from the repo root):
-
-```bash
-# Quick test: few episodes, single listing page
-uv run python scripts/scrape_podscripts.py --dry-run
-
-# Full scrape (default output: gil/transcripts)
-uv run python scripts/scrape_podscripts.py
-
-# Skip episodes that already have a matching .txt in the output dir
-uv run python scripts/scrape_podscripts.py --resume
-
-# Page range and cap
-uv run python scripts/scrape_podscripts.py --start-page 1 --end-page 5 --limit 10
-
-# Debug logging
-uv run python scripts/scrape_podscripts.py --verbose
-```
-
-For every option, see:
-
-```bash
-uv run python scripts/scrape_podscripts.py --help
-```
-
 ### Build A Semantic Index
+
+Index builds and query-time dense retrieval use **OpenRouter embeddings** only. Set `OPENROUTER_API_KEY` and `OPENROUTER_EMBEDDING_MODEL` in `.env` (see [`.env.example`](.env.example)); [`scripts/build_transcript_index.py`](scripts/build_transcript_index.py) loads `.env` from the repo root automatically.
 
 Build a local FAISS index over timestamped transcript chunks:
 
@@ -61,11 +36,18 @@ uv run python scripts/build_transcript_index.py --limit 10
 # Change chunk sizing
 uv run python scripts/build_transcript_index.py --lines-per-chunk 6 --line-overlap 2
 
-# Override the embedding model or output directory
-uv run python scripts/build_transcript_index.py --model multi-qa-mpnet-base-cos-v1 --output-dir data/transcript_index_mpnet
+# Override the OpenRouter embedding model id (otherwise uses OPENROUTER_EMBEDDING_MODEL)
+uv run python scripts/build_transcript_index.py --model mistralai/mistral-embed-2312 --output-dir data/transcript_index_alt
+
+# Incremental update (same model + chunking as existing OpenRouter index)
+uv run python scripts/build_transcript_index.py --incremental
 ```
 
+Indexes built with older local sentence-transformers embeddings are no longer supported; run a **full** rebuild after upgrading.
+
 ### Query The Index
+
+Queries embed the text via OpenRouter using the same API key and (by default) the `model_name` stored in `config.json`. Set env vars as for the build step; [`scripts/query_transcripts.py`](scripts/query_transcripts.py) loads `.env` from the repo root.
 
 After building an index, search it with a free-text basketball query:
 
@@ -89,11 +71,20 @@ Run the tracked seed queries and compute hit rate and MRR:
 ```bash
 uv run python scripts/evaluate_retrieval.py
 uv run python scripts/evaluate_retrieval.py --metadata-dir data/metadata --rerank --json
+uv run python scripts/evaluate_retrieval.py --hybrid --json
 ```
 
-### Ingestion Status Report
+### Topic clustering (offline)
 
-Summarize transcript, index, metadata, and scrape-failure state:
+Cluster chunk embeddings and write `topics_report.json`:
+
+```bash
+uv run python scripts/cluster_transcript_chunks.py --index-dir data/transcript_index
+```
+
+### Artifact Status Report
+
+Summarize transcript files on disk and index/metadata build state:
 
 ```bash
 uv run python scripts/report_ingestion_status.py
@@ -115,35 +106,20 @@ You can instead `export` the same variables listed in [`.env.example`](.env.exam
 
 Open `http://127.0.0.1:8000`. Toggle **Retrieval only** to skip the LLM.
 
-The web UI also supports optional metadata-aware filters, cross-encoder reranking, streaming responses, `/health`, `/ready`, and `/api/ingestion/status`.
-
-### Manifest (this run only)
-
-Write a JSON array of successfully scraped episodes (metadata + transcript URL + path relative to `--output-dir`):
-
-```bash
-uv run python scripts/scrape_podscripts.py --manifest gil/transcripts/manifest.json
-```
-
-If there are no episodes to scrape or none succeed, the file is still written as `[]`. The manifest is **not** merged with previous runs; combine files yourself if you need a full index.
+The web UI also supports optional metadata-aware filters, cross-encoder reranking, optional hybrid (BM25 + dense) retrieval, streaming responses, `/health`, `/ready`, and `/api/ingestion/status`.
 
 ## Outputs
 
-- **Transcripts**: one `.txt` per episode under `--output-dir` (default `gil/transcripts`).
-- **Failures**: append-only log at `data/scrape_failures.log` (default; see `ScraperConfig` in `scripts/scrape_podscripts.py`).
-- **Manifest**: optional JSON when `--manifest` is set.
+- **Transcripts**: one `.txt` per episode under `gil/transcripts` (or your `--transcripts-dir`).
 - **Index artifacts**: local FAISS bundle under `data/transcript_index` by default:
   - `index.faiss`
   - `chunks.json`
   - `config.json`
+  - `source_manifest.json` (when using incremental builds)
 
 ## Evaluation Seeds
 
 - Evaluation seed queries: `evals/gil_queries.json`
-
-## Etiquette
-
-The script checks `robots.txt`, waits between list-page and episode requests (default **1s**, override with `--delay SEC`), and retries with backoff. Tune `rate_limit_seconds`, `total_pages`, and related fields in `ScraperConfig` inside `scripts/scrape_podscripts.py` if the site policy or layout changes.
 
 ## Contributing
 

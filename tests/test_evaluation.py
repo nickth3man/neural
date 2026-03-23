@@ -157,6 +157,7 @@ def test_evaluate_retrieval_reports_hit_rate_and_mrr(
         *,
         model_name: str = "fixture-model",
         normalize_embeddings: bool = True,
+        **_: object,
     ) -> np.ndarray:
         if texts == ["find alpha"]:
             return np.asarray([[1.0, 0.0]], dtype="float32")
@@ -186,7 +187,7 @@ def test_evaluate_retrieval_with_metadata_filter(
 
     monkeypatch.setattr(
         "neural.retrieval.encode_texts",
-        lambda texts, model_name="fixture-model", normalize_embeddings=True: np.asarray(
+        lambda texts, model_name="fixture-model", normalize_embeddings=True, **kwargs: np.asarray(
             [[0.0, 1.0]],
             dtype="float32",
         ),

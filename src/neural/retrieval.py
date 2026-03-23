@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from neural.chunking import TranscriptChunk
-from neural.embeddings import encode_texts
+from neural.embeddings import (
+    EMBEDDING_BACKEND_OPENROUTER,
+    LEGACY_EMBEDDING_BACKEND_SENTENCE_TRANSFORMERS,
+    encode_texts,
+)
+from neural.hybrid_retrieval import bm25_ranked_chunk_ids, reciprocal_rank_fusion
 from neural.metadata_index import (
     MetadataIndex,
     RetrievalFilters,
@@ -42,6 +47,9 @@ def retrieve(
     metadata_index: MetadataIndex | None = None,
     filters: RetrievalFilters | None = None,
     reranker: RerankerConfig | None = None,
+    hybrid: bool = False,
+    hybrid_lexical_k: int = 20,
+    rrf_k: int = 60,
 ) -> list[SearchResult]:
     """
     Embed ``query``, search the bundle index, and return ranked ``SearchResult`` rows.
@@ -53,16 +61,50 @@ def retrieve(
         raise ValueError(msg)
 
     model_name = model_override or bundle.config["model_name"]
+    backend = bundle.config.get(
+        "embedding_backend",
+        LEGACY_EMBEDDING_BACKEND_SENTENCE_TRANSFORMERS,
+    )
+    if backend != EMBEDDING_BACKEND_OPENROUTER:
+        msg = (
+            "This index was built with local sentence-transformers embeddings or predates "
+            "embedding_backend in config. Rebuild the index with OpenRouter embeddings "
+            "(set OPENROUTER_EMBEDDING_MODEL and OPENROUTER_API_KEY, then run a full index build)."
+        )
+        raise ValueError(msg)
     query_embedding = encode_texts([query], model_name=model_name)
     candidate_count = top_k
     if reranker is not None:
         candidate_count = max(candidate_count, reranker.top_n)
     if filters is not None and filters.active() and metadata_index is not None:
         candidate_count = max(candidate_count, top_k * 10)
+    if hybrid:
+        # Need multiple dense hits so RRF can combine with BM25; top-1 dense + BM25 ties otherwise.
+        candidate_count = max(candidate_count, hybrid_lexical_k, top_k + hybrid_lexical_k)
 
-    scores, indices = search_index(bundle.index, query_embedding, candidate_count)
-    results = build_search_results(scores, indices, bundle.chunks)
-    if filters is not None and metadata_index is not None:
+    if hybrid:
+        scores, indices = search_index(bundle.index, query_embedding, candidate_count)
+        dense_results = build_search_results(scores, indices, bundle.chunks)
+        dense_ids = [int(r.chunk.chunk_id) for r in dense_results if r.chunk.chunk_id is not None]
+        bm25_ids = bm25_ranked_chunk_ids(bundle.chunks, query, hybrid_lexical_k)
+        rankings = [dense_ids]
+        if bm25_ids:
+            rankings.append(bm25_ids)
+        fused = reciprocal_rank_fusion(rankings, rrf_k=rrf_k)
+        id_to_chunk = {int(c.chunk_id): c for c in bundle.chunks if c.chunk_id is not None}
+        results = []
+        for offset, (cid, rrf_score) in enumerate(fused[:candidate_count], start=1):
+            chunk = id_to_chunk.get(cid)
+            if chunk is None:
+                continue
+            results.append(
+                SearchResult(rank=offset, score=float(rrf_score), chunk=chunk),
+            )
+    else:
+        scores, indices = search_index(bundle.index, query_embedding, candidate_count)
+        results = build_search_results(scores, indices, bundle.chunks)
+
+    if filters is not None and filters.active() and metadata_index is not None:
         results = filter_search_results(results, metadata_index, filters)
     if reranker is not None:
         results = rerank_results(query, results, reranker)
@@ -82,6 +124,9 @@ def retrieve_from_disk(
     metadata_index: MetadataIndex | None = None,
     filters: RetrievalFilters | None = None,
     reranker: RerankerConfig | None = None,
+    hybrid: bool = False,
+    hybrid_lexical_k: int = 20,
+    rrf_k: int = 60,
 ) -> list[SearchResult]:
     """Load bundle from disk and retrieve in one call (CLI convenience)."""
     bundle = load_retrieval_bundle(index_dir)
@@ -93,6 +138,9 @@ def retrieve_from_disk(
         metadata_index=metadata_index,
         filters=filters,
         reranker=reranker,
+        hybrid=hybrid,
+        hybrid_lexical_k=hybrid_lexical_k,
+        rrf_k=rrf_k,
     )
 
 

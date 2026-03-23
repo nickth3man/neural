@@ -10,11 +10,93 @@ from collections.abc import Iterator
 from typing import Any
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings"
 DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
 class OpenRouterError(Exception):
     """Raised when OpenRouter returns an error or unexpected payload."""
+
+
+def embed_texts_openrouter(
+    texts: list[str],
+    *,
+    model: str,
+    api_key: str,
+    batch_size: int = 32,
+    timeout_seconds: float = 120.0,
+) -> list[list[float]]:
+    """
+    Call OpenRouter's OpenAI-compatible embeddings API for each batch of texts.
+
+    Returns one embedding vector per input text (same order as ``texts``).
+    """
+    if not api_key.strip():
+        msg = "OpenRouter API key is empty"
+        raise OpenRouterError(msg)
+    if batch_size < 1:
+        msg = "batch_size must be at least 1"
+        raise ValueError(msg)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": os.environ.get(
+            "OPENROUTER_HTTP_REFERER", "https://github.com/local/neural"
+        ),
+        "X-Title": os.environ.get("OPENROUTER_APP_TITLE", "Gil Transcript Chatbot"),
+    }
+
+    all_rows: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start : start + batch_size]
+        payload: dict[str, Any] = {"model": model, "input": batch}
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            OPENROUTER_EMBEDDINGS_URL,
+            data=body,
+            method="POST",
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                raw = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            msg = f"OpenRouter embeddings HTTP {exc.code}: {detail[:500]}"
+            raise OpenRouterError(msg) from exc
+        except urllib.error.URLError as exc:
+            msg = f"OpenRouter embeddings request failed: {exc}"
+            raise OpenRouterError(msg) from exc
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            msg = "OpenRouter embeddings returned non-JSON response"
+            raise OpenRouterError(msg) from exc
+
+        rows = data.get("data")
+        if not isinstance(rows, list) or len(rows) != len(batch):
+            msg = f"Unexpected OpenRouter embeddings payload: {raw[:400]}"
+            raise OpenRouterError(msg)
+
+        by_index: dict[int, list[float]] = {}
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            idx = item.get("index")
+            emb = item.get("embedding")
+            if isinstance(idx, int) and isinstance(emb, list):
+                by_index[idx] = [float(x) for x in emb]
+
+        for i in range(len(batch)):
+            vec = by_index.get(i)
+            if vec is None:
+                msg = "OpenRouter embeddings response missing an index"
+                raise OpenRouterError(msg)
+            all_rows.append(vec)
+
+    return all_rows
 
 
 def complete_chat(

@@ -2,6 +2,8 @@ const API_CHAT = "/api/chat";
 const API_CHAT_STREAM = "/api/chat/stream";
 const DEFAULT_TOP_K = 5;
 const DEFAULT_RERANK_TOP_N = 20;
+const DEFAULT_HYBRID_LEXICAL_K = 20;
+const DEFAULT_RRF_K = 60;
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const MAX_HISTORY_ITEMS = 40;
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
@@ -20,8 +22,11 @@ const ui = {
     retrievalOnly: el("retrievalOnly"),
     streaming: el("streaming"),
     rerank: el("rerank"),
+    hybrid: el("hybrid"),
     topK: el("topK"),
     rerankTopN: el("rerankTopN"),
+    hybridLexicalK: el("hybridLexicalK"),
+    rrfK: el("rrfK"),
     episodeType: el("episodeType"),
     guestName: el("guestName"),
     speaker: el("speaker"),
@@ -89,6 +94,9 @@ function buildRequestBody(message) {
         source_file: trimToNull(ui.sourceFile.value),
         rerank: ui.rerank.checked,
         rerank_top_n: readPositiveInt(ui.rerankTopN, DEFAULT_RERANK_TOP_N),
+        hybrid: ui.hybrid.checked,
+        hybrid_lexical_k: readPositiveInt(ui.hybridLexicalK, DEFAULT_HYBRID_LEXICAL_K),
+        rrf_k: readPositiveInt(ui.rrfK, DEFAULT_RRF_K),
     };
 }
 async function fetchWithRetry(url, init) {

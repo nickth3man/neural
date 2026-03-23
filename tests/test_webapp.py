@@ -60,7 +60,7 @@ def _save_index(tmp_path: Path) -> None:
         output_dir=tmp_path,
         index=index,
         chunks=chunks,
-        model_name="all-MiniLM-L6-v2",
+        model_name="mistralai/mistral-embed-2312",
         chunking_config=ChunkingConfig(),
         transcripts_dir=Path("gil/transcripts"),
     )
@@ -74,8 +74,9 @@ def chat_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def fake_encode(
         texts: list[str],
         *,
-        model_name: str = "all-MiniLM-L6-v2",
+        model_name: str = "mistralai/mistral-embed-2312",
         normalize_embeddings: bool = True,
+        **_: object,
     ):
         import numpy as np
 

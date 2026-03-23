@@ -80,6 +80,10 @@
             <input type="checkbox" id="rerank" />
             Rerank Results
           </label>
+          <label class="chip-toggle">
+            <input type="checkbox" id="hybrid" />
+            Hybrid BM25
+          </label>
           <span class="inline-control">
             <label for="topK">top_k</label>
             <input type="number" id="topK" value="5" min="1" max="50" />
@@ -87,6 +91,14 @@
           <span class="inline-control">
             <label for="rerankTopN">rerank_n</label>
             <input type="number" id="rerankTopN" value="20" min="1" max="100" />
+          </span>
+          <span class="inline-control">
+            <label for="hybridLexicalK">lex_k</label>
+            <input type="number" id="hybridLexicalK" value="20" min="1" max="200" />
+          </span>
+          <span class="inline-control">
+            <label for="rrfK">rrf_k</label>
+            <input type="number" id="rrfK" value="60" min="1" max="500" />
           </span>
           <button type="button" id="send" class="btn-primary">Ask</button>
           <button type="button" id="stop" class="btn-secondary" hidden aria-label="Stop in-flight request">Stop</button>

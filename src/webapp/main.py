@@ -44,8 +44,6 @@ load_dotenv(_REPO_ROOT / ".env")
 
 DEFAULT_INDEX_DIR = Path("data/transcript_index")
 DEFAULT_METADATA_DIR = Path("data/metadata")
-DEFAULT_FAILURE_LOG = Path("data/scrape_failures.log")
-DEFAULT_MANIFEST_PATH = Path("gil/transcripts/manifest.json")
 DEFAULT_TRANSCRIPTS_DIR = Path("gil/transcripts")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 logger = logging.getLogger(__name__)
@@ -120,6 +118,9 @@ class ChatRequest(BaseModel):
     source_file: str | None = None
     rerank: bool = False
     rerank_top_n: int = Field(default=20, ge=1, le=100)
+    hybrid: bool = False
+    hybrid_lexical_k: int = Field(default=20, ge=1, le=200)
+    rrf_k: int = Field(default=60, ge=1, le=500)
 
 
 class ChatResponse(BaseModel):
@@ -210,6 +211,9 @@ def _retrieve_for_chat(
         metadata_index=metadata_index,
         filters=_build_filters(body),
         reranker=_build_reranker(body),
+        hybrid=body.hybrid,
+        hybrid_lexical_k=body.hybrid_lexical_k,
+        rrf_k=body.rrf_k,
     )
     citations = citations_from_results(results, metadata_index)
     return results, citations
@@ -312,8 +316,6 @@ async def ingestion_status(request: Request) -> dict[str, Any]:
     metadata_dir = getattr(request.app.state, "metadata_dir", DEFAULT_METADATA_DIR)
     summary = summarize_ingestion_status(
         transcripts_dir=DEFAULT_TRANSCRIPTS_DIR,
-        manifest_path=DEFAULT_MANIFEST_PATH,
-        failure_log_path=DEFAULT_FAILURE_LOG,
         index_dir=index_dir,
         metadata_dir=metadata_dir if isinstance(metadata_dir, Path) else DEFAULT_METADATA_DIR,
     )

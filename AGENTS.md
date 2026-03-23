@@ -4,7 +4,7 @@ This file provides guidance for AI agents operating in this repository.
 
 ## Project Overview
 
-**neural** is a Python 3.12+ project for scraping, indexing, and querying Gil's Arena podcast transcripts from PodScripts.co. It provides a citation-first RAG chatbot via FastAPI.
+**neural** is a Python 3.12+ project for indexing and querying Gil's Arena podcast transcripts (static `.txt` corpus). It provides a citation-first RAG chatbot via FastAPI.
 
 ## Build & Development Commands
 
@@ -189,7 +189,7 @@ neural/
 │       └── templates/    # Jinja2 templates
 ├── scripts/              # Standalone CLI scripts
 ├── tests/                # pytest test suite
-├── gil/transcripts/      # Scraped transcript data (gitignored)
+├── gil/transcripts/      # Local transcript .txt files (gitignored)
 ├── data/                 # Index and metadata (gitignored)
 └── evals/                # Evaluation queries
 ```

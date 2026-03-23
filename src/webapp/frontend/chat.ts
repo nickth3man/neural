@@ -2,6 +2,8 @@ const API_CHAT = "/api/chat";
 const API_CHAT_STREAM = "/api/chat/stream";
 const DEFAULT_TOP_K = 5;
 const DEFAULT_RERANK_TOP_N = 20;
+const DEFAULT_HYBRID_LEXICAL_K = 20;
+const DEFAULT_RRF_K = 60;
 const JSON_HEADERS: HeadersInit = { "Content-Type": "application/json" };
 const MAX_HISTORY_ITEMS = 40;
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
@@ -40,8 +42,11 @@ const ui = {
   retrievalOnly: el<HTMLInputElement>("retrievalOnly"),
   streaming: el<HTMLInputElement>("streaming"),
   rerank: el<HTMLInputElement>("rerank"),
+  hybrid: el<HTMLInputElement>("hybrid"),
   topK: el<HTMLInputElement>("topK"),
   rerankTopN: el<HTMLInputElement>("rerankTopN"),
+  hybridLexicalK: el<HTMLInputElement>("hybridLexicalK"),
+  rrfK: el<HTMLInputElement>("rrfK"),
   episodeType: el<HTMLInputElement>("episodeType"),
   guestName: el<HTMLInputElement>("guestName"),
   speaker: el<HTMLInputElement>("speaker"),
@@ -120,6 +125,9 @@ function buildRequestBody(message: string): Record<string, unknown> {
     source_file: trimToNull(ui.sourceFile.value),
     rerank: ui.rerank.checked,
     rerank_top_n: readPositiveInt(ui.rerankTopN, DEFAULT_RERANK_TOP_N),
+    hybrid: ui.hybrid.checked,
+    hybrid_lexical_k: readPositiveInt(ui.hybridLexicalK, DEFAULT_HYBRID_LEXICAL_K),
+    rrf_k: readPositiveInt(ui.rrfK, DEFAULT_RRF_K),
   };
 }
 

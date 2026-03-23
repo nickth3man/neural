@@ -5,24 +5,33 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from neural.chunking import ChunkingConfig, chunk_corpus
-from neural.corpus import load_corpus
-from neural.embeddings import DEFAULT_EMBEDDING_MODEL, encode_texts
-from neural.vector_index import build_faiss_index, save_index_artifacts
+load_dotenv(REPO_ROOT / ".env")
+
+from neural.chunking import ChunkingConfig
+from neural.embeddings import require_openrouter_embedding_model
+from neural.index_build import build_index_full, build_index_incremental
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a FAISS transcript index from local transcript files.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        epilog=(
+            "Zero-downtime swap: build to a separate directory (e.g. data/transcript_index.new) "
+            "then replace the live directory when the app can reload, or stop the app, swap "
+            "folders, and restart."
+        ),
     )
     parser.add_argument(
         "--transcripts-dir",
@@ -39,8 +48,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_EMBEDDING_MODEL,
-        help="Sentence-transformers embedding model name",
+        default=None,
+        help=(
+            "OpenRouter embedding model id (overrides OPENROUTER_EMBEDDING_MODEL; "
+            "e.g. mistralai/mistral-embed-2312)"
+        ),
     )
     parser.add_argument(
         "--lines-per-chunk",
@@ -64,7 +76,12 @@ def parse_args() -> argparse.Namespace:
         "--limit",
         type=int,
         default=None,
-        help="Optional limit on the number of transcript files to load",
+        help="Optional limit on the number of transcript files to load (full build only)",
+    )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Update an existing IndexIDMap2 index using source_manifest.json (run full build once first)",
     )
     return parser.parse_args()
 
@@ -77,25 +94,38 @@ def main() -> None:
         min_chunk_characters=args.min_chars,
     )
 
-    documents = load_corpus(args.transcripts_dir, limit=args.limit)
-    chunks = chunk_corpus(documents, config=chunking_config)
-    if not chunks:
-        msg = "No transcript chunks were produced from the selected corpus"
+    require_openrouter_embedding_model()
+    if not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        msg = "OPENROUTER_API_KEY is required to build or update the index"
         raise ValueError(msg)
 
-    embeddings = encode_texts([chunk.chunk_text for chunk in chunks], model_name=args.model)
-    index = build_faiss_index(embeddings)
-    save_index_artifacts(
-        output_dir=args.output_dir,
-        index=index,
-        chunks=chunks,
-        model_name=args.model,
-        chunking_config=chunking_config,
-        transcripts_dir=args.transcripts_dir,
-    )
+    model = (args.model or "").strip() or require_openrouter_embedding_model()
 
+    if args.incremental:
+        if args.limit is not None:
+            msg = "--limit cannot be used with --incremental"
+            raise ValueError(msg)
+        did_work = build_index_incremental(
+            transcripts_dir=args.transcripts_dir,
+            output_dir=args.output_dir,
+            model=model,
+            chunking_config=chunking_config,
+        )
+        if not did_work:
+            print("Incremental: manifest unchanged; nothing to do.")
+        else:
+            print(f"Incremental index updated at {args.output_dir}")
+        return
+
+    n_docs, n_chunks = build_index_full(
+        transcripts_dir=args.transcripts_dir,
+        output_dir=args.output_dir,
+        model=model,
+        chunking_config=chunking_config,
+        limit=args.limit,
+    )
     print(
-        f"Indexed {len(documents)} transcripts into {len(chunks)} chunks with model {args.model}."
+        f"Indexed {n_docs} transcripts into {n_chunks} chunks with model {model}.",
     )
     print(f"Artifacts written to {args.output_dir}")
 

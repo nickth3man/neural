@@ -59,6 +59,9 @@ def evaluate_retrieval(
     metadata_index: MetadataIndex | None = None,
     filters: RetrievalFilters | None = None,
     reranker: RerankerConfig | None = None,
+    hybrid: bool = False,
+    hybrid_lexical_k: int = 20,
+    rrf_k: int = 60,
 ) -> EvalSummary:
     results: list[EvalCaseResult] = []
     reciprocal_rank_total = 0.0
@@ -72,6 +75,9 @@ def evaluate_retrieval(
             metadata_index=metadata_index,
             filters=filters,
             reranker=reranker,
+            hybrid=hybrid,
+            hybrid_lexical_k=hybrid_lexical_k,
+            rrf_k=rrf_k,
         )
         filenames = tuple(result.chunk.source_file for result in query_results)
         expected = case.expected_episode_substring.casefold()

@@ -1,7 +1,7 @@
 [project]
 name = "neural"
 version = "0.1.0"
-description = "Utilities for scraping, indexing, and querying Gil's Arena transcripts."
+description = "Utilities for indexing and querying Gil's Arena podcast transcripts (local corpus)."
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4",
@@ -12,6 +12,7 @@ dependencies = [
     "nh3>=0.3.3",
     "numpy>=2.4.3",
     "python-dotenv>=1.0.0",
+    "rank-bm25>=0.2.2",
     "requests",
     "sentence-transformers>=5.3.0",
     "tqdm",
@@ -53,6 +54,7 @@ python-version = "3.12"
 
 [tool.ty.analysis]
 allowed-unresolved-imports = [
+    "rank_bm25.*",
     "markdown.*",
     "nh3.*",
     "faiss.*",

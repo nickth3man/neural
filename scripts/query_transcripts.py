@@ -8,10 +8,14 @@ import argparse
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
+
+load_dotenv(REPO_ROOT / ".env")
 
 from neural.metadata_index import RetrievalFilters, load_metadata_index
 from neural.reranking import RerankerConfig
@@ -69,6 +73,23 @@ def parse_args() -> argparse.Namespace:
         default=RerankerConfig().top_n,
         help="Number of retrieved candidates to rerank",
     )
+    parser.add_argument(
+        "--hybrid",
+        action="store_true",
+        help="Fuse dense FAISS hits with BM25 via reciprocal rank fusion",
+    )
+    parser.add_argument(
+        "--hybrid-lexical-k",
+        type=int,
+        default=20,
+        help="BM25 candidate count for hybrid fusion",
+    )
+    parser.add_argument(
+        "--rrf-k",
+        type=int,
+        default=60,
+        help="RRF smoothing constant k",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +115,9 @@ def main() -> None:
         metadata_index=metadata_index,
         filters=filters,
         reranker=reranker,
+        hybrid=args.hybrid,
+        hybrid_lexical_k=args.hybrid_lexical_k,
+        rrf_k=args.rrf_k,
     )
 
     if not results:

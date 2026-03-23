@@ -37,6 +37,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rerank", action="store_true")
     parser.add_argument("--reranker-model", type=str, default=RerankerConfig().model_name)
     parser.add_argument("--rerank-top-n", type=int, default=RerankerConfig().top_n)
+    parser.add_argument("--hybrid", action="store_true", help="BM25 + dense RRF fusion")
+    parser.add_argument("--hybrid-lexical-k", type=int, default=20)
+    parser.add_argument("--rrf-k", type=int, default=60)
     parser.add_argument("--json", action="store_true", help="Print full JSON report")
     return parser.parse_args()
 
@@ -65,6 +68,9 @@ def main() -> None:
         metadata_index=metadata_index,
         filters=filters,
         reranker=reranker,
+        hybrid=args.hybrid,
+        hybrid_lexical_k=args.hybrid_lexical_k,
+        rrf_k=args.rrf_k,
     )
 
     if args.json:
