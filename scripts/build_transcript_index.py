@@ -94,8 +94,7 @@ def main() -> None:
     )
 
     print(
-        f"Indexed {len(documents)} transcripts into {len(chunks)} chunks "
-        f"with model {args.model}."
+        f"Indexed {len(documents)} transcripts into {len(chunks)} chunks with model {args.model}."
     )
     print(f"Artifacts written to {args.output_dir}")
 

@@ -198,9 +198,7 @@ def fetch_with_retry(
             return response
         except requests.RequestException as e:
             wait_time = CONFIG.rate_limit_seconds * (2**attempt)
-            logger.warning(
-                f"Attempt {attempt + 1}/{CONFIG.max_retries} failed for {url}: {e}"
-            )
+            logger.warning(f"Attempt {attempt + 1}/{CONFIG.max_retries} failed for {url}: {e}")
             if attempt < CONFIG.max_retries - 1:
                 logger.info(f"Waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
@@ -469,9 +467,7 @@ def scrape_episode(
 
     saved_path = save_transcript_as_text(episode["title"], transcript_lines, output_dir)
     if saved_path is not None:
-        logger.info(
-            f"Saved {len(transcript_lines)} lines for episode: {episode['title']}"
-        )
+        logger.info(f"Saved {len(transcript_lines)} lines for episode: {episode['title']}")
         return saved_path
 
     log_failure(transcript_url, "Failed to write transcript file")
@@ -569,9 +565,7 @@ def run_scraper(
 
         # Filter out existing transcripts in resume mode
         episodes_to_scrape = [
-            ep
-            for ep in all_episodes
-            if sanitize_filename(ep["title"]) not in existing_transcripts
+            ep for ep in all_episodes if sanitize_filename(ep["title"]) not in existing_transcripts
         ]
 
         skipped_existing = len(all_episodes) - len(episodes_to_scrape)
@@ -610,8 +604,7 @@ def run_scraper(
                 success_count += 1
                 if manifest_path is not None:
                     transcript_url = (
-                        f"{CONFIG.base_url}/podcasts/{CONFIG.podcast_slug}/"
-                        f"{episode['url_slug']}"
+                        f"{CONFIG.base_url}/podcasts/{CONFIG.podcast_slug}/{episode['url_slug']}"
                     )
                     rel_path = str(saved_path.resolve().relative_to(output_resolved))
                     entry: ManifestEntry = {
@@ -631,9 +624,7 @@ def run_scraper(
             if i < len(episodes_to_scrape) - 1:
                 time.sleep(pause)
 
-        logger.info(
-            f"Scraping complete: {success_count} succeeded, {failure_count} failed"
-        )
+        logger.info(f"Scraping complete: {success_count} succeeded, {failure_count} failed")
 
         if failure_count > 0:
             logger.warning(f"Failures logged to {CONFIG.failure_log_path}")
@@ -728,16 +719,16 @@ def main() -> None:
         )
 
         # Print summary
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print("Scraping Summary")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         print(f"Total episodes found: {result['total_found']}")
         print(f"Skipped (existing):   {result['skipped_existing']}")
         print(f"Succeeded:            {result['succeeded']}")
         print(f"Failed:               {result['failed']}")
         if result["failures"]:
             print(f"Failed episodes:      {', '.join(result['failures'])}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
         # Exit with error code if there were failures
         sys.exit(1 if result["failed"] > 0 else 0)

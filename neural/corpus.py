@@ -6,9 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-TIMESTAMP_LINE_RE = re.compile(
-    r"^Starting point is (?P<timestamp>\d{2}:\d{2}:\d{2})(?P<text>.*)$"
-)
+TIMESTAMP_LINE_RE = re.compile(r"^Starting point is (?P<timestamp>\d{2}:\d{2}:\d{2})(?P<text>.*)$")
 
 
 @dataclass(frozen=True)
