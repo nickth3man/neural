@@ -114,13 +114,17 @@ def load_transcript(path: Path) -> TranscriptDocument:
     )
 
 
-def load_corpus(transcripts_dir: Path, limit: int | None = None) -> list[TranscriptDocument]:
+def load_corpus(
+    transcripts_dir: Path, limit: int | None = None, offset: int = 0
+) -> list[TranscriptDocument]:
     """Load all transcript files from a directory."""
     if not transcripts_dir.exists():
         msg = f"Transcript directory not found: {transcripts_dir}"
         raise FileNotFoundError(msg)
 
     transcript_paths = sorted(path for path in transcripts_dir.glob("*.txt") if path.is_file())
+    if offset > 0:
+        transcript_paths = transcript_paths[offset:]
     if limit is not None:
         transcript_paths = transcript_paths[:limit]
 

@@ -95,6 +95,85 @@ class SourceConfidence(StrEnum):
     LOW = "low"
 
 
+class EmotionalIntensity(StrEnum):
+    """Energy/intensity level of the discussion."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class KeyMomentType(StrEnum):
+    """Type of NBA moment being discussed."""
+
+    TRADE = "trade"
+    INJURY = "injury"
+    BREAKOUT = "breakout"
+    AWARD = "award"
+    HISTORIC = "historic"
+    SUSPENSION = "suspension"
+    CONTRACT = "contract"
+    DRAFT = "draft"
+    RETIREMENT = "retirement"
+    GAME_RESULT = "game_result"
+    SEASON_PREVIEW = "season_preview"
+    PLAYOFF = "playoff"
+    ANTHEM = "anthem"  # anthem/double anthem game
+
+
+# Controlled vocabulary lists for controversy detection
+CONTROVERSY_SIGNALS: list[str] = [
+    "disagree",
+    "wrong take",
+    "overrated",
+    "underrated",
+    "hate",
+    "stupid",
+    "terrible",
+    "awful",
+    "embarrassing",
+    "should be traded",
+    "overpaid",
+    "bust",
+    "can'T",
+    "won'T",
+    "shouldn'T",
+    "despise",
+    "foolish",
+]
+
+NBA_CONCEPT_KEYWORDS: list[str] = [
+    "trade",
+    "contract",
+    "salary",
+    "cap space",
+    "draft pick",
+    "free agent",
+    "restricted free agent",
+    "unrestricted free agent",
+    "waived",
+    "buyout",
+    "suspended",
+    "all-nba",
+    "all-star",
+    "rookie of the year",
+    "mvp",
+    "dpoy",
+    "sixth man",
+    "roster spot",
+    "two-way",
+    "exhibit",
+    "option",
+    "player option",
+    "team option",
+    "qualifying offer",
+    "trade exception",
+    "dead cap",
+    "luxury tax",
+    " purse",
+]
+
+
 # ============================================================================
 # Anchor Types (Tier 1-3)
 # ============================================================================
@@ -185,6 +264,10 @@ class ChunkMetadata:
     conversation_type: ConversationType = ConversationType.BANTER
     claim_type: ClaimType = ClaimType.OPINION
     content_type: ContentType = ContentType.MAIN_DISCUSSION
+    topic_category: TopicCategory = TopicCategory.PLAYER
+    controversy_signals: tuple[str, ...] = ()
+    key_moment_type: KeyMomentType | None = None
+    emotional_intensity: EmotionalIntensity = EmotionalIntensity.MEDIUM
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable mapping."""
@@ -271,6 +354,8 @@ CONVERSATION_TYPE_VALUES = [e.value for e in ConversationType]
 CLAIM_TYPE_VALUES = [e.value for e in ClaimType]
 STANCE_VALUES = [e.value for e in Stance]
 SOURCE_CONFIDENCE_VALUES = [e.value for e in SourceConfidence]
+EMOTIONAL_INTENSITY_VALUES = [e.value for e in EmotionalIntensity]
+KEY_MOMENT_TYPE_VALUES = [e.value for e in KeyMomentType]
 
 
 def document_extraction_schema() -> dict[str, Any]:
@@ -410,6 +495,26 @@ def chunk_enrichment_schema(roster: list[str]) -> dict[str, Any]:
                 "type": "string",
                 "enum": SOURCE_CONFIDENCE_VALUES,
                 "description": "Confidence level for the extraction.",
+            },
+            "topic_category": {
+                "type": "string",
+                "enum": TOPIC_CATEGORY_VALUES,
+                "description": "Taxonomy category: team, player, league, event, business, social_justice, show_meta, sponsor, holiday.",
+            },
+            "controversy_signals": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Controversy keywords detected: disagree, hate, terrible, wrong take, overrated, underrated, etc.",
+            },
+            "key_moment_type": {
+                "type": "string",
+                "enum": KEY_MOMENT_TYPE_VALUES,
+                "description": "NBA moment type: trade, injury, breakout, award, historic, suspension, contract, draft, retirement, game_result, season_preview, playoff.",
+            },
+            "emotional_intensity": {
+                "type": "string",
+                "enum": EMOTIONAL_INTENSITY_VALUES,
+                "description": "Energy level of this discussion chunk: low, medium, high.",
             },
             "speaker_evidence": {
                 "type": "string",

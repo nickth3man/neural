@@ -37,13 +37,14 @@ def build_index_full(
     model: str,
     chunking_config: ChunkingConfig,
     limit: int | None = None,
+    offset: int = 0,
 ) -> tuple[int, int]:
     """Rebuild the index from scratch and write ``source_manifest.json``.
 
     Returns:
         ``(transcript_count, chunk_count)``.
     """
-    documents = load_corpus(transcripts_dir, limit=limit)
+    documents = load_corpus(transcripts_dir, limit=limit, offset=offset)
     chunks = chunk_corpus(documents, config=chunking_config)
     if not chunks:
         msg = "No transcript chunks were produced from the selected corpus"

@@ -36,6 +36,10 @@ class ChunkMetadataRecord:
     mentioned_people: tuple[str, ...]
     mentioned_teams: tuple[str, ...]
     mentioned_leagues: tuple[str, ...]
+    topic_category: str = ""
+    controversy_signals: tuple[str, ...] = ()
+    key_moment_type: str = ""
+    emotional_intensity: str = "medium"
 
     @property
     def key(self) -> ChunkKey:
@@ -78,6 +82,9 @@ class RetrievalFilters:
     team: str | None = None
     topic: str | None = None
     source_file: str | None = None
+    topic_category: str | None = None
+    key_moment_type: str | None = None
+    controversy: bool | None = None
 
     def active(self) -> bool:
         return any(
@@ -89,7 +96,10 @@ class RetrievalFilters:
                 self.team,
                 self.topic,
                 self.source_file,
+                self.topic_category,
+                self.key_moment_type,
             )
+            if value is not None and not isinstance(value, bool)
         )
 
 
@@ -122,6 +132,10 @@ def load_metadata_index(metadata_dir: Path) -> MetadataIndex:
             mentioned_people=tuple(str(v) for v in chunk_meta.get("mentioned_people") or ()),
             mentioned_teams=tuple(str(v) for v in chunk_meta.get("mentioned_teams") or ()),
             mentioned_leagues=tuple(str(v) for v in chunk_meta.get("mentioned_leagues") or ()),
+            topic_category=str(chunk_meta.get("topic_category", "")),
+            controversy_signals=tuple(str(v) for v in chunk_meta.get("controversy_signals") or ()),
+            key_moment_type=str(chunk_meta.get("key_moment_type", "")),
+            emotional_intensity=str(chunk_meta.get("emotional_intensity", "medium")),
         )
         chunk_records[record.key] = record
 
@@ -172,6 +186,10 @@ def metadata_to_citation(record: ChunkMetadataRecord | None) -> dict[str, object
         "mentioned_people": list(record.mentioned_people),
         "mentioned_teams": list(record.mentioned_teams),
         "mentioned_leagues": list(record.mentioned_leagues),
+        "topic_category": record.topic_category,
+        "controversy_signals": list(record.controversy_signals),
+        "key_moment_type": record.key_moment_type,
+        "emotional_intensity": record.emotional_intensity,
     }
 
 
@@ -240,5 +258,18 @@ def _matches_filters(
     )
     if not _text_match(filters.topic, *topic_values):
         return False
+
+    if filters.topic_category and record is not None:
+        if _normalize(record.topic_category) != _normalize(filters.topic_category):
+            return False
+
+    if filters.key_moment_type and record is not None:
+        if _normalize(record.key_moment_type) != _normalize(filters.key_moment_type):
+            return False
+
+    if filters.controversy is not None and record is not None:
+        has_controversy = bool(record.controversy_signals)
+        if filters.controversy != has_controversy:
+            return False
 
     return True

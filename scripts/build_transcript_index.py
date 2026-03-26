@@ -79,6 +79,12 @@ def parse_args() -> argparse.Namespace:
         help="Optional limit on the number of transcript files to load (full build only)",
     )
     parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="Number of transcript files to skip before loading (for sequential batching)",
+    )
+    parser.add_argument(
         "--incremental",
         action="store_true",
         help="Update an existing IndexIDMap2 index using source_manifest.json (run full build once first)",
@@ -123,6 +129,7 @@ def main() -> None:
         model=model,
         chunking_config=chunking_config,
         limit=args.limit,
+        offset=args.offset,
     )
     print(
         f"Indexed {n_docs} transcripts into {n_chunks} chunks with model {model}.",

@@ -17,10 +17,13 @@ from neural.metadata_types import (
     ContentType,
     ConversationType,
     DocumentMetadata,
+    EmotionalIntensity,
     EnrichedChunk,
+    KeyMomentType,
     LlmMetadata,
     SourceConfidence,
     Stance,
+    TopicCategory,
 )
 from neural.openrouter import OpenRouterError, complete_chat
 
@@ -42,6 +45,10 @@ CRITICAL RULES:
 5. For conversation type, classify the dialogue mode in this chunk.
 6. For claim type, classify the primary statement being made.
 7. Mentions: extract people, teams, and leagues explicitly named in the text.
+8. topic_category: classify the primary domain (player, team, league, event, business, etc.).
+9. controversy_signals: detect heated/controversial language (disagree, hate, terrible, wrong take, etc.).
+10. key_moment_type: identify NBA moment type if applicable (trade, injury, breakout, award, historic, etc.).
+11. emotional_intensity: rate energy level as low, medium, or high.
 
 Controlled vocabularies:
 - conversation_type: debate, analysis, reaction, banter, interview, news_roundup, promotion
@@ -50,6 +57,9 @@ Controlled vocabularies:
   main_discussion, guest_interview, promo_read, outro
 - stance: supportive, critical, mixed, skeptical, descriptive
 - source_confidence: high, medium, low
+- topic_category: team, player, league, event, business, social_justice, show_meta, sponsor, holiday
+- key_moment_type: trade, injury, breakout, award, historic, suspension, contract, draft, retirement, game_result, season_preview, playoff, anthem
+- emotional_intensity: low, medium, high
 """
 
 CHUNK_ENRICHMENT_USER_TEMPLATE = """\
@@ -254,24 +264,27 @@ def _build_deterministic_chunk_meta(
     chunk_index: int,
 ) -> ChunkMetadata:
     """Build deterministic chunk metadata from position and basic matching."""
-    # Classify content type based on position
     content_type = _classify_chunk_content_type(chunk, chunk_index)
-
-    # Default conversation type based on chunk text
     conversation_type = _classify_conversation_type(chunk.chunk_text)
-
-    # Default claim type
     claim_type = _classify_claim_type(chunk.chunk_text)
+    topic_category = _detect_topic_category(chunk.chunk_text)
+    controversy_signals = _detect_controversy(chunk.chunk_text)
+    key_moment_type = _detect_key_moment(chunk.chunk_text)
+    emotional_intensity = _classify_emotional_intensity(chunk.chunk_text)
 
     return ChunkMetadata(
         chunk_index=chunk_index,
-        adjacent_context_window="",  # Filled by enrichment pipeline if needed
+        adjacent_context_window="",
         mentioned_people=(),
         mentioned_teams=(),
         mentioned_leagues=(),
         conversation_type=conversation_type,
         claim_type=claim_type,
         content_type=content_type,
+        topic_category=topic_category,
+        controversy_signals=tuple(controversy_signals),
+        key_moment_type=key_moment_type,
+        emotional_intensity=emotional_intensity,
     )
 
 
@@ -334,6 +347,94 @@ def _classify_claim_type(text: str) -> ClaimType:
         return ClaimType.FACT
 
     return ClaimType.OPINION
+
+
+def _detect_topic_category(text: str) -> TopicCategory:
+    text_lower = text.lower()
+    if any(w in text_lower for w in ["trade", "deal", "acquired", "traded for"]):
+        return TopicCategory.TEAM
+    if any(w in text_lower for w in ["player", "career", "stats", "game log"]):
+        return TopicCategory.PLAYER
+    if any(w in text_lower for w in ["league", "nba", "commissioner", " CBA"]):
+        return TopicCategory.LEAGUE
+    if any(w in text_lower for w in ["event", "all-star", "draft", "playoffs"]):
+        return TopicCategory.EVENT
+    if any(w in text_lower for w in ["contract", "salary", "money", "pay", "million"]):
+        return TopicCategory.BUSINESS
+    if any(w in text_lower for w in ["social justice", "community", "activism"]):
+        return TopicCategory.SOCIAL_JUSTICE
+    if any(w in text_lower for w in ["halloween", "christmas", "holiday", "juneteenth"]):
+        return TopicCategory.HOLIDAY
+    if any(w in text_lower for w in ["sponsor", "ad", "promo"]):
+        return TopicCategory.SPONSOR
+    return TopicCategory.PLAYER
+
+
+def _detect_controversy(text: str) -> list[str]:
+    text_lower = text.lower()
+    found = []
+    for signal in [
+        "disagree",
+        "wrong take",
+        "overrated",
+        "underrated",
+        "hate",
+        "stupid",
+        "terrible",
+        "awful",
+        "embarrassing",
+        "should be traded",
+        "overpaid",
+        "bust",
+        "despise",
+        "foolish",
+    ]:
+        if signal in text_lower:
+            found.append(signal)
+    return found[:5]
+
+
+def _detect_key_moment(text: str) -> KeyMomentType | None:
+    text_lower = text.lower()
+    if any(w in text_lower for w in ["trade", "traded", "deal", "acquired"]):
+        return KeyMomentType.TRADE
+    if any(w in text_lower for w in ["injury", "hurt", "out for", "missed"]):
+        return KeyMomentType.INJURY
+    if any(w in text_lower for w in ["breakout", "emerged", "came into his own"]):
+        return KeyMomentType.BREAKOUT
+    if any(w in text_lower for w in ["mvp", "award", "all-nba", "rookie of the year"]):
+        return KeyMomentType.AWARD
+    if any(w in text_lower for w in ["historic", "record", "first time", "all-time"]):
+        return KeyMomentType.HISTORIC
+    if any(w in text_lower for w in ["suspended", "suspension"]):
+        return KeyMomentType.SUSPENSION
+    if any(w in text_lower for w in ["contract", "signed", "extension", "salary"]):
+        return KeyMomentType.CONTRACT
+    if any(w in text_lower for w in ["draft", "lottery", "pick"]):
+        return KeyMomentType.DRAFT
+    if any(w in text_lower for w in ["retire", "retirement", "legacy"]):
+        return KeyMomentType.RETIREMENT
+    if any(w in text_lower for w in ["playoff", "finals", "game 7", "elimination"]):
+        return KeyMomentType.PLAYOFF
+    if any(w in text_lower for w in ["score", "win", "loss", "final", "beat"]):
+        return KeyMomentType.GAME_RESULT
+    return None
+
+
+def _classify_emotional_intensity(text: str) -> EmotionalIntensity:
+    text_lower = text.lower()
+    exclamations = text.count("!")
+    caps_words = sum(1 for w in text.split() if w.isupper() and len(w) > 1)
+    heated = any(
+        w in text_lower for w in ["hate", "stupid", "terrible", "awful", "disgrace", "embarrassing"]
+    )
+    if exclamations >= 3 or caps_words >= 3 or heated:
+        return EmotionalIntensity.HIGH
+    if exclamations >= 1 or any(
+        w in text_lower for w in ["wow", "shocking", "incredible", "crazy"]
+    ):
+        return EmotionalIntensity.MEDIUM
+    return EmotionalIntensity.LOW
 
 
 def _build_llm_meta(
