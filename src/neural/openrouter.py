@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
@@ -24,12 +25,15 @@ def embed_texts_openrouter(
     model: str,
     api_key: str,
     batch_size: int = 32,
-    timeout_seconds: float = 120.0,
+    timeout_seconds: float = 300.0,
+    max_retries: int = 5,
+    initial_backoff: float = 5.0,
 ) -> list[list[float]]:
     """
     Call OpenRouter's OpenAI-compatible embeddings API for each batch of texts.
 
     Returns one embedding vector per input text (same order as ``texts``).
+    Retries on timeout and URLError with exponential backoff.
     """
     if not api_key.strip():
         msg = "OpenRouter API key is empty"
@@ -58,17 +62,24 @@ def embed_texts_openrouter(
             method="POST",
             headers=headers,
         )
-        try:
-            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
-                raw = resp.read().decode("utf-8")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            msg = f"OpenRouter embeddings HTTP {exc.code}: {detail[:500]}"
-            raise OpenRouterError(msg) from exc
-        except urllib.error.URLError as exc:
-            msg = f"OpenRouter embeddings request failed: {exc}"
-            raise OpenRouterError(msg) from exc
 
+        raw: str | None = None
+        for attempt in range(max_retries):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                    raw = resp.read().decode("utf-8")
+                break
+            except (urllib.error.URLError, TimeoutError) as exc:
+                if attempt < max_retries - 1:
+                    backoff = initial_backoff * (2**attempt)
+                    time.sleep(backoff)
+                else:
+                    msg = (
+                        f"OpenRouter embeddings request failed after {max_retries} attempts: {exc}"
+                    )
+                    raise OpenRouterError(msg) from exc
+
+        assert raw is not None, "raw must be assigned before the loop breaks"
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
